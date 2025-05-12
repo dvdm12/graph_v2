@@ -7,10 +7,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Representa una asignación de clase con todos los datos necesarios para detección de conflictos.
@@ -18,6 +19,8 @@ import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonDeserialize(builder = Assignment.Builder.class)
 public class Assignment {
+    private static final Logger logger = LoggerFactory.getLogger(Assignment.class);
+
     private int id;
     private LocalDate assignmentDate;
     private int professorId;
@@ -56,39 +59,53 @@ public class Assignment {
     }
 
     private void validateAssignment() {
+        logger.debug("Validando Assignment id={}", id);
         Objects.requireNonNull(assignmentDate, "La fecha de asignación no puede ser null");
         Objects.requireNonNull(professorName, "El nombre del profesor no puede ser null");
         Objects.requireNonNull(startTime, "La hora de inicio no puede ser null");
         Objects.requireNonNull(endTime, "La hora de fin no puede ser null");
         if (endTime.isBefore(startTime)) {
+            logger.error("Validación fallida en Assignment id={}: endTime {} es antes de startTime {}", id, endTime, startTime);
             throw new IllegalArgumentException("La hora de fin debe ser posterior a la de inicio");
         }
+        logger.debug("Assignment id={} validado correctamente", id);
     }
 
     /**
      * Determina los conflictos con otra asignación.
      */
     public Map<String, List<ConflictEdge>> conflictsWith(Assignment other) {
+        logger.debug("Calculando conflictos entre id={} y id={}", id, other.id);
         Map<String, List<ConflictEdge>> conflicts = new HashMap<>();
         if (!this.day.equals(other.day) || !overlaps(other)) {
+            logger.debug("No hay solapamiento o distinto día entre id={} y id={}", id, other.id);
             return conflicts;
         }
+        // Conflicto por profesor
         if (this.professorId == other.professorId) {
+            logger.debug("Conflicto de profesor entre id={} y id={}", id, other.id);
             conflicts.computeIfAbsent("professor", k -> new ArrayList<>())
                      .add(new ConflictEdge("Solapamiento de horarios (mismo profesor)"));
         }
+        // Conflicto por sala
         if (this.roomId == other.roomId) {
+            logger.debug("Conflicto de sala entre id={} y id={}", id, other.id);
             conflicts.computeIfAbsent("room", k -> new ArrayList<>())
                      .add(new ConflictEdge("Solapamiento de horarios (misma sala)"));
         }
+        // Conflicto por grupo
         if (this.subjectGroupId == other.subjectGroupId) {
+            logger.debug("Conflicto de grupo entre id={} y id={}", id, other.id);
             conflicts.computeIfAbsent("group", k -> new ArrayList<>())
                      .add(new ConflictEdge("Solapamiento de horarios (mismo grupo)"));
         }
+        // Conflicto por jornada
         if (this.sessionType.equals(other.sessionType)) {
+            logger.debug("Conflicto de jornada entre id={} y id={}", id, other.id);
             conflicts.computeIfAbsent("sessionType", k -> new ArrayList<>())
                      .add(new ConflictEdge("Misma jornada y horario"));
         }
+        logger.debug("Conflictos encontrados: {} para par id={} y id={}", conflicts.keySet(), id, other.id);
         return conflicts;
     }
 
