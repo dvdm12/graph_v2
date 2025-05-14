@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Visualizador de Conflictos Académicos - Herramienta para identificar y analizar conflictos en horarios académicos">
+    <meta name="author" content="DAVID MANTILLA AVILES, JUAN JOSE VILLA ZAMORA, JUAN MANUEL ECHEVERRY RESTREPO">
+    
+    <title>Visualizador de Conflictos Académicos</title>
+    
+    <!-- Favicon -->
+    <link rel="icon" href="assets/favicon.ico" type="image/x-icon">
+    
+    <!-- Estilos CSS -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/components/header.css">
+    <link rel="stylesheet" href="css/components/graph.css">
+    <link rel="stylesheet" href="css/components/side-panel.css">
+    
+    <!-- D3.js Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js" integrity="sha512-M7nHCiNUOwFt6Us3r8alutZLm9qMt4s9951uo8jqO4UwJ1hziseL6O3ndFyigx6+LREfZqnhHxYjKRJ8ZQ69DQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    
+    <style>
+    /* Estilos específicos para el footer arreglado */
+    .app-footer {
+        background-color: var(--background-dark);
+        color: var(--text-light);
+        padding: 8px;
+        text-align: center;
+        font-size: 0.8rem;
+        height: 40px;
+        min-height: auto;
+        max-height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        flex-shrink: 0;
+        z-index: 10;
+        overflow: hidden;
+    }
+
+    .app-footer .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        line-height: 1.2;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .app-footer p {
+        margin: 0;
+        padding: 0;
+    }
+
+    .developers {
+        font-style: italic;
+        opacity: 0.7;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    /* Estilos mejorados para la zona de arrastre */
+    .drop-zone {
+        border: 3px dashed var(--primary-color);
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 50; /* Valor aumentado para asegurar que está por encima */
+        background-color: rgba(255, 255, 255, 0.95);
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .drop-zone.highlight {
+        background-color: rgba(26, 115, 232, 0.1);
+        border-color: var(--primary-light);
+        border-width: 4px;
+        transform: scale(0.98);
+    }
+    
+    .drop-zone h2 {
+        color: var(--primary-color);
+        margin-bottom: 15px;
+        transition: color 0.3s ease;
+    }
+    
+    .drop-zone.highlight h2 {
+        color: var(--primary-dark);
+    }
+    
+    /* Estilos para el spinner de carga */
+    .loading-indicator {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .spinner {
+        width: 50px;
+        height: 50px;
+        border: 3px solid rgba(26, 115, 232, 0.3);
+        border-top: 3px solid var(--primary-color);
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 15px;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    </style>
+</head>
+<body>
+    <!-- Cabecera de la aplicación -->
+    <header class="app-header">
+        <div class="header-title">
+            <h1>Visualizador de Conflictos Académicos</h1>
+        </div>
+        <div class="header-controls">
+            <button id="uploadJSON" class="btn btn-primary" title="Cargar archivo JSON">
+                <span class="icon icon-upload"></span>
+                <span>Cargar JSON</span>
+            </button>
+            <button id="clearGraph" class="btn btn-danger" title="Borrar el grafo actual">
+                <span class="icon icon-trash"></span>
+                <span>Borrar Grafo</span>
+            </button>
+            <button id="toggleFullscreen" class="btn btn-secondary" title="Alternar pantalla completa">
+                <span class="icon icon-fullscreen"></span>
+            </button>
+            <button id="helpButton" class="btn btn-info" title="Mostrar ayuda">
+                <span class="icon icon-help"></span>
+            </button>
+            <input type="file" id="jsonFile" accept=".json" style="display: none">
+        </div>
+    </header>
+    
+    <!-- Contenedor principal -->
+    <main class="main-container">
+        <!-- Contenedor del grafo -->
+        <section class="graph-container" id="graphContainer">
+            <!-- Zona para arrastrar y soltar archivos -->
+            <div class="drop-zone" id="dropZone">
+                <h2>Arrastra un archivo JSON aquí</h2>
+                <p>O haz clic en "Cargar JSON"</p>
+            </div>
+            
+            <!-- Leyenda de colores (inicialmente oculta) -->
+            <div class="legend" id="colorLegend">
+                <h3>Tipos de Conflicto</h3>
+                <ul class="legend-list">
+                    <li><span class="color-sample" style="background-color: #e53935;"></span> Mismo profesor</li>
+                    <li><span class="color-sample" style="background-color: #ffb300;"></span> Misma sala</li>
+                    <li><span class="color-sample" style="background-color: #43a047;"></span> Mismo grupo</li>
+                    <li><span class="color-sample" style="background-color: #26a69a;"></span> Horario/Jornada</li>
+                    <li><span class="color-sample" style="background-color: #9c27b0;"></span> Franja bloqueada</li>
+                </ul>
+                <button id="legendToggle" class="btn btn-sm">Ocultar</button>
+            </div>
+            
+            <!-- Controles del grafo -->
+            <div class="graph-controls" id="graphControls">
+                <button id="zoomIn" class="control-btn" title="Acercar">+</button>
+                <button id="zoomOut" class="control-btn" title="Alejar">-</button>
+                <button id="resetZoom" class="control-btn" title="Restablecer zoom">&#8634;</button>
+            </div>
+        </section>
+        
+        <!-- Panel lateral de información -->
+        <aside class="side-panel">
+            <!-- Sección de información del nodo -->
+            <section class="panel-section">
+                <h2>Información del nodo</h2>
+                <div id="nodeInfo" class="panel-content">
+                    <p>Selecciona un nodo para ver detalles</p>
+                </div>
+            </section>
+            
+            <!-- Sección de conflictos -->
+            <section class="panel-section">
+                <h2>Conflictos</h2>
+                <div id="conflictList" class="panel-content">
+                    <p>Selecciona un nodo para ver sus conflictos</p>
+                </div>
+            </section>
+            
+            <!-- Sección de estadísticas -->
+            <section class="panel-section" id="statsSection">
+                <h2>Estadísticas</h2>
+                <div id="statsContent" class="panel-content">
+                    <p>Carga un archivo para ver estadísticas</p>
+                </div>
+            </section>
+        </aside>
+    </main>
+    
+    <!-- Pie de página con información de los desarrolladores -->
+    <footer class="app-footer">
+        <div class="container">
+            <p>© 2025 Visualizador de Conflictos Académicos</p>
+            <p class="developers">
+                Desarrollado por: DAVID MANTILLA AVILES, JUAN JOSE VILLA ZAMORA, JUAN MANUEL ECHEVERRY RESTREPO
+            </p>
+        </div>
+    </footer>
+    
+    <!-- Modal de ayuda (inicialmente oculto) -->
+    <div id="helpModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Ayuda - Visualizador de Conflictos</h2>
+                <button id="closeHelpModal" class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <h3>Acerca de la aplicación</h3>
+                <p>Esta herramienta permite visualizar y analizar conflictos en horarios académicos mediante un grafo interactivo.</p>
+                
+                <h3>Equipo de desarrollo</h3>
+                <ul class="dev-team">
+                    <li>DAVID MANTILLA AVILES</li>
+                    <li>JUAN JOSE VILLA ZAMORA</li>
+                    <li>JUAN MANUEL ECHEVERRY RESTREPO</li>
+                </ul>
+                
+                <h3>Cómo usar</h3>
+                <ul>
+                    <li><strong>Cargar datos:</strong> Arrastra un archivo JSON al área central o usa el botón "Cargar JSON".</li>
+                    <li><strong>Navegar:</strong> Usa la rueda del ratón para zoom y arrastra para mover el grafo.</li>
+                    <li><strong>Seleccionar:</strong> Haz clic en un nodo para ver su información y conflictos.</li>
+                    <li><strong>Limpiar:</strong> Usa el botón "Borrar Grafo" para reiniciar.</li>
+                </ul>
+                
+                <h3>Atajos de teclado</h3>
+                <ul>
+                    <li><strong>Esc:</strong> Deseleccionar nodo</li>
+                    <li><strong>C:</strong> Centrar grafo</li>
+                    <li><strong>Alt + ←:</strong> Navegar atrás en el historial de selección</li>
+                    <li><strong>Alt + →:</strong> Navegar adelante en el historial de selección</li>
+                    <li><strong>Alt + N:</strong> Ir al siguiente nodo con conflicto</li>
+                </ul>
+                
+                <h3>Formato de archivo</h3>
+                <p>La aplicación espera un archivo JSON con nodos (clases) y aristas (conflictos). Cada nodo representa una clase académica con propiedades como profesor, aula, horario, etc. Las aristas representan conflictos entre clases, como solapamientos de horarios o uso de recursos.</p>
+                
+                <h3>Tipos de conflicto</h3>
+                <ul>
+                    <li><span class="color-sample" style="background-color: #e53935;"></span> <strong>Mismo profesor:</strong> El mismo profesor tiene clases superpuestas</li>
+                    <li><span class="color-sample" style="background-color: #ffb300;"></span> <strong>Misma sala:</strong> La misma sala tiene clases superpuestas</li>
+                    <li><span class="color-sample" style="background-color: #43a047;"></span> <strong>Mismo grupo:</strong> El mismo grupo tiene clases superpuestas</li>
+                    <li><span class="color-sample" style="background-color: #26a69a;"></span> <strong>Horario/Jornada:</strong> Solapamiento de horarios general</li>
+                    <li><span class="color-sample" style="background-color: #9c27b0;"></span> <strong>Franja bloqueada:</strong> Conflicto con una franja bloqueada</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <!-- Utilidades -->
+    <script type="module" src="js/utils/EventEmitter.js"></script>
+    <script type="module" src="js/utils/ColorUtils.js"></script>
+    <script type="module" src="js/utils/FormatUtils.js"></script>
+    
+    <!-- Modelos -->
+    <script type="module" src="js/models/GraphData.js"></script>
+    <script type="module" src="js/models/Node.js"></script>
+    <script type="module" src="js/models/Conflict.js"></script>
+    
+    <!-- Vistas -->
+    <script type="module" src="js/views/GraphView.js"></script>
+    <script type="module" src="js/views/SidePanelView.js"></script>
+    
+    <!-- Controladores -->
+    <script type="module" src="js/controllers/FileController.js"></script>
+    <script type="module" src="js/controllers/SelectionController.js"></script>
+    <script type="module" src="js/controllers/AppController.js"></script>
+    
+    <!-- Punto de entrada -->
+    <script type="module" src="js/app.js"></script>
+    
+    <!-- Script para controlar el modal de ayuda -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const helpModal = document.getElementById('helpModal');
+            const helpButton = document.getElementById('helpButton');
+            const closeHelpModal = document.getElementById('closeHelpModal');
+            
+            // Abrir modal
+            helpButton.addEventListener('click', function() {
+                helpModal.style.display = 'block';
+            });
+            
+            // Cerrar modal con botón
+            closeHelpModal.addEventListener('click', function() {
+                helpModal.style.display = 'none';
+            });
+            
+            // Cerrar modal al hacer clic fuera
+            window.addEventListener('click', function(event) {
+                if (event.target === helpModal) {
+                    helpModal.style.display = 'none';
+                }
+            });
+            
+            // Cerrar modal con ESC
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape' && helpModal.style.display === 'block') {
+                    helpModal.style.display = 'none';
+                }
+            });
+            
+            // Controlar pantalla completa
+            const toggleFullscreen = document.getElementById('toggleFullscreen');
+            
+            toggleFullscreen.addEventListener('click', function() {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(err => {
+                        console.error(`Error al intentar mostrar pantalla completa: ${err.message}`);
+                    });
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    }
+                }
+            });
+            
+            // Mostrar/ocultar leyenda
+            const legendToggle = document.getElementById('legendToggle');
+            const colorLegend = document.getElementById('colorLegend');
+            
+            legendToggle.addEventListener('click', function() {
+                if (legendToggle.textContent === 'Ocultar') {
+                    colorLegend.style.transform = 'translateY(calc(100% - 40px))';
+                    legendToggle.textContent = 'Mostrar';
+                } else {
+                    colorLegend.style.transform = 'translateY(0)';
+                    legendToggle.textContent = 'Ocultar';
+                }
+            });
+            
+            // Controles de zoom del grafo
+            const zoomIn = document.getElementById('zoomIn');
+            const zoomOut = document.getElementById('zoomOut');
+            const resetZoom = document.getElementById('resetZoom');
+            
+            // Estas funciones serán implementadas completamente cuando esté 
+            // disponible GraphView, por ahora son placeholders
+            zoomIn.addEventListener('click', function() {
+                if (window.app && window.app.graphView) {
+                    window.app.graphView.zoomIn();
+                }
+            });
+            
+            zoomOut.addEventListener('click', function() {
+                if (window.app && window.app.graphView) {
+                    window.app.graphView.zoomOut();
+                }
+            });
+            
+            resetZoom.addEventListener('click', function() {
+                if (window.app && window.app.graphView) {
+                    window.app.graphView.centerGraph();
+                }
+            });
+        });
+    </script>
+    
+    <!-- Script alternativo para navegadores sin soporte de módulos -->
+    <script nomodule>
+        document.body.innerHTML = '<div style="padding: 20px; text-align: center;">' +
+            '<h1>Navegador no compatible</h1>' +
+            '<p>Esta aplicación requiere un navegador moderno con soporte para módulos ES.</p>' +
+            '<p>Por favor, actualiza tu navegador o utiliza Chrome, Firefox, Safari o Edge en su versión más reciente.</p>' +
+            '</div>';
+    </script>
+    
+    <!-- Script de corrección para la carga de archivos JSON -->
+    <script>
+        // Se ejecuta después de que el DOM está cargado
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log("Aplicando corrección para la carga de archivos JSON");
+            
+            // Referencias a elementos DOM
+            const dropZone = document.getElementById('dropZone');
+            const uploadButton = document.getElementById('uploadJSON');
+            const fileInput = document.getElementById('jsonFile');
+            const clearButton = document.getElementById('clearGraph');
+            
+            // Verificar que los elementos existen
+            if (!dropZone || !uploadButton || !fileInput) {
+                console.error("Error: Elementos críticos no encontrados");
+                return;
+            }
+            
+            // Función principal para procesar un archivo JSON
+            function processJsonFile(file) {
+                console.log(`Procesando archivo: ${file.name}`);
+                
+                // Actualizar UI para mostrar carga
+                dropZone.innerHTML = `
+                    <div class="loading-indicator">
+                        <div class="spinner"></div>
+                        <p>Cargando ${file.name}...</p>
+                    </div>
+                `;
+                
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        // Parsear el JSON
+                        const jsonData = JSON.parse(e.target.result);
+                        console.log("JSON parseado correctamente", jsonData);
+                        
+                        // Validación básica del JSON
+                        if (!jsonData || typeof jsonData !== 'object') {
+                            throw new Error("El archivo no contiene un objeto JSON válido");
+                        }
+                        
+                        const hasNodes = Array.isArray(jsonData.nodes);
+                        const hasEdges = Array.isArray(jsonData.edges);
+                        
+                        if (!hasNodes && !hasEdges) {
+                            throw new Error("El JSON no contiene arrays 'nodes' o 'edges'");
+                        }
+                        
+                        // Encontrar la aplicación global y cargar los datos
+                        if (window.app && typeof window.app.loadGraphData === 'function') {
+                            // Método principal: usar la función de la app
+                            window.app.loadGraphData(jsonData);
+                            console.log("Datos cargados usando app.loadGraphData()");
+                        } else {
+                            // Plan B: buscar el controlador de la aplicación
+                            console.log("Buscando otras formas de cargar el JSON...");
+                            
+                            let appFound = false;
+                            
+                            // Intentar opciones alternativas
+                            if (window.app && window.app.eventEmitter) {
+                                window.app.eventEmitter.emit('file-loaded', { file, data: jsonData });
+                                appFound = true;
+                                console.log("Evento emitido a app.eventEmitter");
+                            }
+                            else if (window.appController && window.appController.loadGraphData) {
+                                window.appController.loadGraphData(jsonData);
+                                appFound = true;
+                                console.log("Datos cargados usando appController.loadGraphData()");
+                            }
+                            
+                            if (!appFound) {
+                                // Como último recurso, guardar los datos globalmente
+                                console.warn("No se encontró forma de integrar los datos con la aplicación.");
+                                window.jsonData = jsonData;
+                                
+                                alert(`El archivo ${file.name} se ha cargado pero no se pudo encontrar la aplicación para procesarlo automáticamente. Los datos están disponibles como 'window.jsonData' en la consola para debugging.`);
+                            }
+                        }
+                        
+                        // Ocultar la zona de drop cuando se haya cargado correctamente
+                        setTimeout(function() {
+                            dropZone.style.display = 'none';
+                        }, 1000);
+                        
+                    } catch (error) {
+                        console.error("Error al procesar JSON:", error);
+                        
+                        // Mostrar error al usuario
+                        dropZone.innerHTML = `
+                            <div class="error-message" style="color: #d32f2f; text-align: center;">
+                                <h2 style="color: #d32f2f;">Error al cargar el archivo</h2>
+                                <p>${error.message}</p>
+                                <p>Arrastra un archivo JSON válido aquí<br>o haz clic en "Cargar JSON"</p>
+                            </div>
+                        `;
+                        
+                        // Restaurar mensaje original después de un tiempo
+                        setTimeout(function() {
+                            dropZone.innerHTML = `
+                                <h2>Arrastra un archivo JSON aquí</h2>
+                                <p>O haz clic en "Cargar JSON"</p>
+                            `;
+                        }, 4000);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    console.error("Error al leer el archivo");
+                    
+                    // Mostrar error al usuario
+                    dropZone.innerHTML = `
+                        <div class="error-message" style="color: #d32f2f; text-align: center;">
+                            <h2 style="color: #d32f2f;">Error al leer el archivo</h2>
+                            <p>No se pudo leer el contenido del archivo</p>
+                            <p>Arrastra un archivo JSON válido aquí<br>o haz clic en "Cargar JSON"</p>
+                        </div>
+                    `;
+                    
+                    // Restaurar mensaje original después de un tiempo
+                    setTimeout(function() {
+                        dropZone.innerHTML = `
+                            <h2>Arrastra un archivo JSON aquí</h2>
+                            <p>O haz clic en "Cargar JSON"</p>
+                        `;
+                    }, 4000);
+                };
+                
+                // Iniciar la lectura del archivo
+                reader.readAsText(file);
+            }
+            
+            // === Configurar eventos de arrastrar y soltar ===
+            
+            // Prevenir comportamiento por defecto
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                // Usar addEventListener directamente para evitar conflictos
+                dropZone.addEventListener(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true); // Usar captura para asegurar que estos se ejecuten primero
+                
+                // También prevenir en el body para evitar comportamientos inesperados
+                document.body.addEventListener(eventName, function(e) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, true);
+            });
+            
+            // Resaltar al arrastrar sobre la zona
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, function() {
+                    dropZone.classList.add('highlight');
+                }, true);
+            });
+            
+            // Quitar resaltado al salir
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, function() {
+                    dropZone.classList.remove('highlight');
+                }, true);
+            });
+            
+            // Procesar archivo al soltarlo
+            dropZone.addEventListener('drop', function(e) {
+                console.log("Archivo soltado en la zona de arrastre");
+                
+                const dt = e.dataTransfer;
+                if (dt && dt.files && dt.files.length > 0) {
+                    const file = dt.files[0];
+                    processJsonFile(file);
+                }
+            }, true);
+            
+            // === Configurar eventos de botones ===
+            
+            // Clic en la zona de arrastre
+            dropZone.addEventListener('click', function() {
+                console.log("Clic en zona de arrastre - activando selector de archivos");
+                fileInput.click();
+            }, true);
+            
+            // Botón de carga de JSON
+            uploadButton.addEventListener('click', function(e) {
+                console.log("Clic en botón de carga - activando selector de archivos");
+                e.preventDefault();
+                fileInput.click();
+            }, true);
+            
+            // Cambio en el selector de archivos
+            fileInput.addEventListener('change', function(e) {
+                console.log("Archivo seleccionado desde el input");
+                if (e.target.files && e.target.files.length > 0) {
+                    const file = e.target.files[0];
+                    processJsonFile(file);
+                    
+                    // Limpiar el input para permitir seleccionar el mismo archivo de nuevo
+                    fileInput.value = '';
+                }
+            }, true);
+            
+            // Gestionar el botón de limpiar
+            if (clearButton) {
+                clearButton.addEventListener('click', function() {
+                    // Si el dropZone está oculto, mostrarlo de nuevo
+                    if (dropZone.style.display === 'none') {
+                        dropZone.style.display = 'flex';
+                        dropZone.innerHTML = `
+                            <h2>Arrastra un archivo JSON aquí</h2>
+                            <p>O haz clic en "Cargar JSON"</p>
+                        `;
+                    }
+                }, true);
+            }
+            
+            console.log("Corrección para carga de archivos JSON aplicada con éxito");
+        });
+    </script>
+</body>
+</html>

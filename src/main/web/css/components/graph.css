@@ -1,0 +1,460 @@
+/**
+ * Estilos específicos para el grafo y sus componentes
+ * graph.css - Actualizado para el FileController refactorizado
+ * 
+ * Desarrollado por:
+ * - DAVID MANTILLA AVILES
+ * - JUAN JOSE VILLA ZAMORA
+ * - JUAN MANUEL ECHEVERRY RESTREPO
+ */
+
+.graph-container {
+  flex: 3;
+  position: relative;
+  background-color: white;
+  overflow: hidden;
+}
+
+/* SVG del grafo */
+.graph-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Zona de arrastrar y soltar - Estado base */
+.drop-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  border: 3px dashed var(--primary-color);
+  border-radius: var(--border-radius);
+  z-index: 10;
+  background-color: rgba(255, 255, 255, 0.95);
+  transition: all 0.3s ease;
+  text-align: center;
+  padding: var(--spacing-xl);
+  cursor: pointer; /* Indica que es clickeable */
+}
+
+.drop-zone h2 {
+  margin-bottom: var(--spacing-lg);
+  color: var(--primary-color);
+  font-size: 1.5rem;
+  transition: color 0.3s ease;
+}
+
+.drop-zone p {
+  color: var(--text-dark);
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+/* Estado de resaltado durante arrastre */
+.drop-zone.highlight {
+  background-color: rgba(26, 115, 232, 0.1);
+  transform: scale(0.98);
+  border-color: var(--primary-light);
+  border-width: 4px;
+  box-shadow: 0 0 15px rgba(26, 115, 232, 0.2);
+}
+
+.drop-zone.highlight h2 {
+  color: var(--primary-dark);
+  transform: scale(1.05);
+}
+
+.drop-zone.highlight p {
+  opacity: 0.9;
+}
+
+/* Estado de carga */
+.drop-zone.loading {
+  background-color: rgba(66, 133, 244, 0.05);
+  border-color: var(--primary-color);
+  border-style: solid;
+}
+
+/* Estado de error */
+.drop-zone.error {
+  background-color: rgba(234, 67, 53, 0.05);
+  border-color: var(--danger-color);
+  border-style: solid;
+}
+
+.drop-zone.error h2,
+.drop-zone.error p {
+  color: var(--danger-color);
+}
+
+/* Estado de éxito */
+.drop-zone.success {
+  background-color: rgba(52, 168, 83, 0.05);
+  border-color: var(--secondary-color);
+  border-style: solid;
+  animation: successPulse 1.5s ease;
+}
+
+/* Spinner de carga */
+.loading-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.spinner {
+  display: inline-block;
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(26, 115, 232, 0.3);
+  border-radius: 50%;
+  border-top-color: var(--primary-color);
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-lg);
+}
+
+.loading-indicator p {
+  color: var(--primary-color);
+  font-weight: 500;
+  margin-top: var(--spacing-sm);
+  opacity: 1; /* Más visible que el estado normal */
+}
+
+/* Mensaje de error */
+.error-message {
+  color: var(--danger-color);
+  text-align: center;
+  max-width: 80%;
+}
+
+.error-message p {
+  margin-bottom: var(--spacing-lg);
+  color: var(--danger-color);
+  opacity: 1;
+}
+
+.error-message p strong {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+/* Mensaje temporal */
+.temp-message {
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: fadeIn 0.3s;
+  max-width: 80%;
+  text-align: center;
+  z-index: 100;
+}
+
+.temp-message p {
+  color: white;
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Elementos del grafo */
+/* Nodos */
+.node {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.node:hover {
+  transform: scale(1.05);
+}
+
+.node-circle {
+  stroke: white;
+  stroke-width: 2px;
+  transition: stroke 0.2s, stroke-width 0.2s;
+}
+
+.node-label {
+  text-anchor: middle;
+  dominant-baseline: middle;
+  font-weight: bold;
+  fill: white;
+  font-size: 14px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.node-info {
+  pointer-events: none;
+  opacity: 0.9;
+  transition: opacity 0.2s;
+}
+
+.node:hover .node-info {
+  opacity: 1;
+}
+
+/* Panel de información del nodo */
+.info-panel {
+  background-color: white;
+  border-radius: var(--border-radius);
+  padding: 5px;
+  box-shadow: 0 2px 4px var(--shadow-color);
+  pointer-events: none;
+  width: 120px;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+.info-header {
+  font-weight: bold;
+  font-size: 12px;
+  text-align: center;
+  margin-bottom: 3px;
+}
+
+.info-text {
+  font-size: 10px;
+  text-align: center;
+  margin-bottom: 2px;
+}
+
+/* Enlaces */
+.link {
+  stroke-opacity: 0.8;
+  transition: opacity 0.2s, stroke-width 0.2s;
+}
+
+/* Contador de conflictos */
+.count-badge {
+  background-color: #333;
+  color: white;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  box-shadow: 0 2px 4px var(--shadow-color);
+  pointer-events: none;
+  user-select: none;
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+
+/* Auto-bucles */
+.self-loop-circle {
+  fill: none;
+  stroke-width: 2px;
+  transition: opacity 0.2s;
+}
+
+/* Leyenda de colores */
+.legend {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  background-color: white;
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  box-shadow: 0 2px 8px var(--shadow-color);
+  z-index: 20;
+  max-width: 250px;
+  transition: transform 0.3s, opacity 0.3s;
+}
+
+.legend h3 {
+  margin-top: 0;
+  margin-bottom: var(--spacing-sm);
+  font-size: 1rem;
+  color: var(--text-dark);
+}
+
+.legend-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  margin-bottom: var(--spacing-sm);
+}
+
+.legend-list li {
+  display: flex;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+  font-size: 0.9rem;
+}
+
+.color-sample {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  margin-right: var(--spacing-sm);
+}
+
+/* Controles del grafo */
+.graph-controls {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+  z-index: 20;
+}
+
+.control-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background-color: white;
+  border: 1px solid var(--border-color);
+  color: var(--text-dark);
+  font-size: 1.2rem;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 5px var(--shadow-color);
+  transition: background-color 0.2s, transform 0.1s;
+}
+
+.control-btn:hover {
+  background-color: var(--background-light);
+  transform: scale(1.05);
+}
+
+.control-btn:active {
+  transform: scale(0.95);
+}
+
+/* Estilos específicos para los diferentes tipos de conflicto */
+.link.conflict-professor {
+  stroke: var(--conflict-professor);
+}
+
+.link.conflict-room {
+  stroke: var(--conflict-room);
+}
+
+.link.conflict-group {
+  stroke: var(--conflict-group);
+}
+
+.link.conflict-schedule {
+  stroke: var(--conflict-schedule);
+}
+
+.link.conflict-blocked {
+  stroke: var(--conflict-blocked);
+}
+
+/* Adaptación responsiva */
+@media (max-width: 768px) {
+  .graph-container {
+    height: 60vh; /* Altura fija en dispositivos móviles */
+  }
+  
+  .drop-zone h2 {
+    font-size: 1.2rem;
+  }
+  
+  .drop-zone p {
+    font-size: 0.9rem;
+  }
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .loading-indicator p,
+  .error-message p {
+    font-size: 0.9rem;
+  }
+  
+  .legend {
+    max-width: 200px;
+    font-size: 0.8rem;
+    padding: var(--spacing-sm);
+    bottom: 10px;
+    left: 10px;
+  }
+  
+  .legend h3 {
+    font-size: 0.9rem;
+  }
+  
+  .legend-list li {
+    font-size: 0.8rem;
+    margin-bottom: 2px;
+  }
+  
+  .graph-controls {
+    bottom: 10px;
+    right: 10px;
+  }
+  
+  .control-btn {
+    width: 30px;
+    height: 30px;
+    font-size: 1rem;
+  }
+}
+
+/* Notificación de arrastrar archivos válidos */
+.drop-zone::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--primary-color), var(--primary-light), var(--primary-color));
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 2;
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+}
+
+.drop-zone.highlight::before {
+  opacity: 1;
+  animation: slide 2s linear infinite;
+}
+
+@keyframes slide {
+  from { background-position: 0% 0; }
+  to { background-position: 200% 0; }
+}
+
+@keyframes successPulse {
+  0% { background-color: rgba(52, 168, 83, 0.2); }
+  50% { background-color: rgba(52, 168, 83, 0.1); }
+  100% { background-color: rgba(52, 168, 83, 0.05); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translate(-50%, -60%); }
+  to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+/* Transición suave para ocultar la zona de arrastre */
+.drop-zone.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease, visibility 0.5s;
+  visibility: hidden;
+}

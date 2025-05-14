@@ -1,0 +1,387 @@
+/**
+ * Estilos principales para el Visualizador de Conflictos Académicos
+ * main.css - Estilos globales y variables - Actualizado
+ * 
+ * Desarrollado por:
+ * - DAVID MANTILLA AVILES
+ * - JUAN JOSE VILLA ZAMORA
+ * - JUAN MANUEL ECHEVERRY RESTREPO
+ */
+
+/* Variables CSS */
+:root {
+  /* Colores principales */
+  --primary-color: #1a73e8;
+  --primary-dark: #1669d9;
+  --primary-light: #4285f4;
+  --secondary-color: #34a853;
+  --danger-color: #ea4335;
+  --warning-color: #fbbc04;
+  --info-color: #42a5f5;
+  
+  /* Colores para tipos de conflicto */
+  --conflict-professor: #e53935;  /* Rojo - mismo profesor */
+  --conflict-room: #ffb300;       /* Ámbar - misma sala */
+  --conflict-group: #43a047;      /* Verde - mismo grupo */
+  --conflict-schedule: #26a69a;   /* Verde azulado - horario */
+  --conflict-blocked: #9c27b0;    /* Púrpura - franja bloqueada */
+  --conflict-default: #9e9e9e;    /* Gris - tipo desconocido */
+  
+  /* Colores neutrales */
+  --text-dark: #333333;
+  --text-light: #ffffff;
+  --background-light: #f5f5f5;
+  --background-dark: #333333;
+  --border-color: #dee2e6;
+  --shadow-color: rgba(0, 0, 0, 0.2);
+  
+  /* Espaciado */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 12px;
+  --spacing-lg: 16px;
+  --spacing-xl: 24px;
+  
+  /* Dimensiones */
+  --header-height: 60px;
+  --footer-height: 40px;         /* NUEVO: Altura específica para el footer */
+  --sidebar-width: 320px;
+  --border-radius: 5px;
+}
+
+/* Reseteo de estilos */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Estilos generales */
+html, body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  height: 100%;
+  color: var(--text-dark);
+  background-color: #ffffff;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Contenedor principal */
+.main-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Estilos de texto y tipografía */
+h1, h2, h3, h4, h5, h6 {
+  margin-bottom: var(--spacing-md);
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+h1 { font-size: 1.75rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.25rem; }
+h4 { font-size: 1.1rem; }
+h5 { font-size: 1rem; }
+h6 { font-size: 0.9rem; }
+
+p {
+  margin-bottom: var(--spacing-md);
+}
+
+/* Enlaces */
+a {
+  color: var(--primary-color);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+a:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
+/* Listas */
+ul, ol {
+  margin-bottom: var(--spacing-md);
+  padding-left: var(--spacing-lg);
+}
+
+li {
+  margin-bottom: var(--spacing-xs);
+}
+
+/* Botones generales */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: none;
+  border-radius: var(--border-radius);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.1s;
+  text-align: center;
+  text-decoration: none;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:focus {
+  outline: 2px solid rgba(26, 115, 232, 0.5);
+  outline-offset: 2px;
+}
+
+/* Variantes de botones */
+.btn-primary {
+  background-color: var(--primary-color);
+  color: var(--text-light);
+}
+
+.btn-primary:hover {
+  background-color: var(--primary-dark);
+}
+
+.btn-secondary {
+  background-color: var(--secondary-color);
+  color: var(--text-light);
+}
+
+.btn-secondary:hover {
+  background-color: #2d964a;
+}
+
+.btn-danger {
+  background-color: var(--danger-color);
+  color: var(--text-light);
+}
+
+.btn-danger:hover {
+  background-color: #d32f2f;
+}
+
+.btn-info {
+  background-color: var(--info-color);
+  color: var(--text-light);
+}
+
+.btn-info:hover {
+  background-color: #1e88e5;
+}
+
+.btn-sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: 0.85rem;
+}
+
+/* Iconos */
+.icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+  margin-right: var(--spacing-xs);
+}
+
+/* Modal general */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  overflow: auto;
+}
+
+.modal-content {
+  background-color: #ffffff;
+  margin: 5% auto;
+  padding: 0;
+  border-radius: var(--border-radius);
+  box-shadow: 0 5px 15px var(--shadow-color);
+  max-width: 600px;
+  width: 90%;
+  animation: modalFadeIn 0.3s;
+}
+
+.modal-header {
+  padding: var(--spacing-lg);
+  background-color: var(--primary-color);
+  color: var(--text-light);
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-body {
+  padding: var(--spacing-xl);
+}
+
+.close-button {
+  color: var(--text-light);
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Footer de la aplicación - ACTUALIZADO */
+.app-footer {
+  background-color: var(--background-dark);
+  color: var(--text-light);
+  padding: var(--spacing-sm);  /* Reducido de spacing-lg */
+  text-align: center;
+  font-size: 0.8rem;          /* Reducido de 0.9rem */
+  height: var(--footer-height);
+  min-height: auto;           /* Elimina el mínimo anterior */
+  max-height: var(--footer-height);
+  display: flex;
+  align-items: center;        /* Centrado vertical */
+  justify-content: center;    /* Centrado horizontal */
+  width: 100%;
+  flex-shrink: 0;             /* Evita que el footer se encoja */
+  z-index: 10;                /* Asegura que está por encima de otros elementos */
+  overflow: hidden;           /* Previene scroll dentro del footer */
+}
+
+.app-footer .container {
+  max-width: 1200px;
+  margin: 0 auto;
+  line-height: 1.2;           /* Reduce el espaciado entre líneas */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.app-footer p {
+  margin: 0;                  /* Elimina márgenes para ahorrar espacio */
+  padding: 0;
+}
+
+.developers {
+  font-style: italic;
+  opacity: 0.7;               /* Ligeramente más transparente */
+  font-size: 0.75rem;         /* Aún más pequeño */
+  white-space: nowrap;        /* Evita saltos de línea */
+  overflow: hidden;           /* Oculta textos demasiado largos */
+  text-overflow: ellipsis;    /* Agrega puntos suspensivos si el texto es demasiado largo */
+}
+
+/* Para añadir clearfix a ciertos elementos */
+.clearfix::after {
+  content: "";
+  display: table;
+  clear: both;
+}
+
+/* Utilidades para texto */
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.text-right { text-align: right; }
+.text-bold { font-weight: bold; }
+.text-italic { font-style: italic; }
+
+/* Utilidades para espaciado */
+.mt-1 { margin-top: var(--spacing-sm); }
+.mb-1 { margin-bottom: var(--spacing-sm); }
+.ml-1 { margin-left: var(--spacing-sm); }
+.mr-1 { margin-right: var(--spacing-sm); }
+.m-1 { margin: var(--spacing-sm); }
+.p-1 { padding: var(--spacing-sm); }
+
+.mt-2 { margin-top: var(--spacing-md); }
+.mb-2 { margin-bottom: var(--spacing-md); }
+.ml-2 { margin-left: var(--spacing-md); }
+.mr-2 { margin-right: var(--spacing-md); }
+.m-2 { margin: var(--spacing-md); }
+.p-2 { padding: var(--spacing-md); }
+
+/* Compatibilidad con navegadores más antiguos */
+@media screen and (max-width: 768px) {
+  .main-container {
+    flex-direction: column;
+  }
+  
+  .developers {
+    font-size: 0.7rem;  /* Aún más pequeño en móviles */
+    max-width: 100%;
+  }
+  
+  .app-footer {
+    height: auto;       /* Permite altura variable */
+    min-height: var(--footer-height);
+    padding: 4px;       /* Padding mínimo */
+  }
+}
+
+/* Compatibilidad con navegadores sin variables CSS */
+@supports not (--foo: green) {
+  .app-footer {
+    padding: 8px;
+    height: 40px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .developers {
+    font-size: 0.75rem;
+  }
+}
+
+/* Accesibilidad - visible solo para lectores de pantalla */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Vista de impresión */
+@media print {
+  .app-footer {
+    background-color: white;
+    color: black;
+    border-top: 1px solid #ccc;
+  }
+  
+  /* Asegura que el footer se muestre en la impresión */
+  .app-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+  }
+}

@@ -1,0 +1,420 @@
+/**
+ * Estilos para el panel lateral
+ * side-panel.css
+ * 
+ * Desarrollado por:
+ * - DAVID MANTILLA AVILES
+ * - JUAN JOSE VILLA ZAMORA
+ * - JUAN MANUEL ECHEVERRY RESTREPO
+ */
+
+.side-panel {
+  flex: 1;
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+  max-width: var(--sidebar-width);
+  background-color: var(--background-light);
+  box-shadow: -2px 0 5px var(--shadow-color);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  z-index: 50;
+}
+
+.panel-section {
+  background-color: white;
+  border-radius: var(--border-radius);
+  box-shadow: 0 1px 3px var(--shadow-color);
+  overflow: hidden;
+  transition: box-shadow 0.3s;
+}
+
+.panel-section:hover {
+  box-shadow: 0 3px 6px var(--shadow-color);
+}
+
+.panel-section h2 {
+  background-color: var(--primary-light);
+  color: var(--text-light);
+  padding: var(--spacing-md);
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.panel-content {
+  padding: var(--spacing-md);
+}
+
+/* Detalles del nodo en panel lateral */
+.node-details {
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  margin-bottom: var(--spacing-md);
+  box-shadow: 0 1px 3px var(--shadow-color);
+  animation: fadeIn 0.3s;
+}
+
+.node-details-header {
+  padding: var(--spacing-md);
+  color: white;
+}
+
+.node-details-content {
+  padding: var(--spacing-md);
+  background: white;
+}
+
+.node-details-content p {
+  margin: var(--spacing-xs) 0;
+  display: flex;
+  justify-content: space-between;
+}
+
+.node-details-content p strong {
+  font-weight: 600;
+  color: var(--text-dark);
+  margin-right: var(--spacing-sm);
+}
+
+/* Lista de conflictos */
+.conflict-count {
+  padding: var(--spacing-md);
+  background: #e9ecef;
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-md);
+  font-weight: bold;
+  text-align: center;
+}
+
+.conflict-item {
+  margin-top: var(--spacing-md);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 1px 2px var(--shadow-color);
+  animation: fadeIn 0.3s;
+}
+
+.conflict-header {
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.conflict-content {
+  padding: var(--spacing-md);
+  background: white;
+}
+
+.conflict-content ul {
+  margin-top: var(--spacing-xs);
+  padding-left: var(--spacing-xl);
+}
+
+.conflict-content li {
+  margin-bottom: var(--spacing-xs);
+}
+
+.conflict-badge {
+  background-color: white;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+
+/* Franjas bloqueadas */
+.blocked-slots {
+  margin-top: var(--spacing-md);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.blocked-slot-list {
+  list-style: none;
+  padding: 0;
+  margin-top: var(--spacing-xs);
+}
+
+.blocked-slot-list li {
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.blocked-slot-list li:last-child {
+  border-bottom: none;
+}
+
+.blocked-slot-list li.conflicting {
+  color: var(--conflict-blocked);
+  font-weight: bold;
+}
+
+/* Estadísticas */
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.stat-item:last-child {
+  border-bottom: none;
+}
+
+.stat-label {
+  font-weight: 500;
+}
+
+.stat-value {
+  font-weight: bold;
+}
+
+/* Estilos específicos para diferentes tipos de conflicto */
+.conflict-professor .conflict-header {
+  background-color: var(--conflict-professor);
+}
+
+.conflict-room .conflict-header {
+  background-color: var(--conflict-room);
+}
+
+.conflict-group .conflict-header {
+  background-color: var(--conflict-group);
+}
+
+.conflict-schedule .conflict-header {
+  background-color: var(--conflict-schedule);
+}
+
+.conflict-blocked .conflict-header {
+  background-color: var(--conflict-blocked);
+}
+
+.conflict-professor .conflict-badge {
+  color: var(--conflict-professor);
+}
+
+.conflict-room .conflict-badge {
+  color: var(--conflict-room);
+}
+
+.conflict-group .conflict-badge {
+  color: var(--conflict-group);
+}
+
+.conflict-schedule .conflict-badge {
+  color: var(--conflict-schedule);
+}
+
+.conflict-blocked .conflict-badge {
+  color: var(--conflict-blocked);
+}
+
+/* Estado vacío o cargando */
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xl) var(--spacing-md);
+  color: #666;
+}
+
+.empty-state-icon {
+  font-size: 2rem;
+  margin-bottom: var(--spacing-md);
+  opacity: 0.5;
+}
+
+/* Estado de carga en panel lateral */
+.panel-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+}
+
+.panel-loading .spinner {
+  width: 30px;
+  height: 30px;
+  margin-bottom: var(--spacing-md);
+}
+
+/* Mensajes de advertencia o error en el panel */
+.panel-message {
+  background-color: #fff3cd;
+  color: #856404;
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  margin-bottom: var(--spacing-md);
+  border-left: 4px solid #ffc107;
+}
+
+.panel-message.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border-left-color: #dc3545;
+}
+
+.panel-message.info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border-left-color: #17a2b8;
+}
+
+/* Pestañas en el panel (opcional para futura expansión) */
+.panel-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background-color: #f8f9fa;
+}
+
+.panel-tab {
+  padding: var(--spacing-sm) var(--spacing-lg);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.3s;
+}
+
+.panel-tab:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.panel-tab.active {
+  border-bottom-color: var(--primary-color);
+  font-weight: 500;
+}
+
+/* Adaptación responsiva */
+@media screen and (max-width: 768px) {
+  .side-panel {
+    max-width: 100%;
+    height: 40%;
+    min-height: 200px;
+    max-height: 50vh;
+    padding: var(--spacing-md);
+    gap: var(--spacing-md);
+  }
+  
+  .panel-section h2 {
+    font-size: 1rem;
+    padding: var(--spacing-sm) var(--spacing-md);
+  }
+  
+  .panel-content {
+    padding: var(--spacing-sm);
+  }
+  
+  .conflict-header {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .conflict-content {
+    padding: var(--spacing-sm);
+  }
+  
+  .node-details-header,
+  .node-details-content {
+    padding: var(--spacing-sm);
+  }
+}
+
+/* Animaciones para elementos del panel */
+@keyframes slideIn {
+  from {
+    transform: translateY(10px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.panel-section {
+  animation: slideIn 0.3s ease-out;
+  animation-fill-mode: both;
+}
+
+.panel-section:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.panel-section:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.panel-section:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* Efectos de desplazamiento suave para el panel */
+.side-panel {
+  scroll-behavior: smooth;
+}
+
+/* Scrollbar personalizada para el panel lateral */
+.side-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.side-panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.side-panel::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 4px;
+}
+
+.side-panel::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* Estilos para el tooltip de información (opcional) */
+.info-tooltip {
+  position: relative;
+  display: inline-block;
+  margin-left: var(--spacing-xs);
+  cursor: help;
+}
+
+.info-tooltip .icon-info {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  background-color: #ccc;
+  color: white;
+  border-radius: 50%;
+  text-align: center;
+  line-height: 16px;
+  font-size: 12px;
+}
+
+.info-tooltip .tooltip-text {
+  visibility: hidden;
+  width: 200px;
+  background-color: #555;
+  color: #fff;
+  text-align: center;
+  border-radius: 6px;
+  padding: 5px;
+  position: absolute;
+  z-index: 1;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -100px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.info-tooltip:hover .tooltip-text {
+  visibility: visible;
+  opacity: 1;
+}

@@ -1,0 +1,300 @@
+/**
+ * Estilos para el encabezado de la aplicación
+ * header.css - Actualizado para mejorar interactividad de los botones
+ * 
+ * Desarrollado por:
+ * - DAVID MANTILLA AVILES
+ * - JUAN JOSE VILLA ZAMORA
+ * - JUAN MANUEL ECHEVERRY RESTREPO
+ */
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--primary-color);
+  color: var(--text-light);
+  padding: 0 var(--spacing-xl);
+  height: var(--header-height);
+  box-shadow: 0 2px 4px var(--shadow-color);
+  z-index: 100;
+  position: relative;
+}
+
+.header-title h1 {
+  font-size: 1.5rem;
+  font-weight: 500;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.header-controls {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+}
+
+/* Botón de carga actualizado */
+#uploadJSON {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease-in-out;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Efecto de ondulación al hacer clic */
+#uploadJSON::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.5s, opacity 0.5s;
+}
+
+#uploadJSON:active::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  transition: 0s;
+}
+
+/* Mejora del estado hover */
+#uploadJSON:hover {
+  background-color: var(--primary-dark);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#uploadJSON:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Enfatizar el ícono */
+#uploadJSON .icon-upload {
+  position: relative;
+  transition: transform 0.2s;
+}
+
+#uploadJSON:hover .icon-upload {
+  transform: translateY(-2px);
+}
+
+/* Estado de desactivado */
+#uploadJSON.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background-color: #999;
+  transform: none;
+  box-shadow: none;
+}
+
+#uploadJSON.disabled:hover {
+  transform: none;
+  background-color: #999;
+}
+
+/* Input file oculto */
+#jsonFile {
+  display: none;
+}
+
+/* Botón Borrar Grafo con estados actualizados */
+#clearGraph {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease-in-out;
+}
+
+#clearGraph::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120%;
+  height: 120%;
+  background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0) 70%);
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.5s, opacity 0.5s;
+}
+
+#clearGraph:active::after {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  transition: 0s;
+}
+
+#clearGraph:hover {
+  background-color: #d32f2f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#clearGraph:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#clearGraph.disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background-color: #999;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Estado de carga para el botón */
+#uploadJSON.loading {
+  background-color: var(--primary-dark);
+  cursor: wait;
+  pointer-events: none;
+}
+
+#uploadJSON.loading .icon-upload {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Iconos específicos del encabezado */
+.icon-upload {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M9 16h6v-6h4l-7-7-7 7h4z"/><path d="M5 18h14v2H5z"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.icon-trash {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.icon-fullscreen {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.icon-help {
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>');
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+/* Efecto al pasar el ratón sobre el título */
+.header-title h1:hover {
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+/* Tooltip para los botones */
+.header-controls .btn {
+  position: relative;
+}
+
+.header-controls .btn::before {
+  content: attr(title);
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%) scale(0.8);
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 101;
+}
+
+.header-controls .btn:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* Animación de atención para botones principales */
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(255, 255, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); }
+}
+
+.btn-primary.pulse-attention {
+  animation: pulse 1.5s infinite;
+}
+
+/* Versión compacta del encabezado para pantallas pequeñas */
+@media screen and (max-width: 768px) {
+  .app-header {
+    padding: 0 var(--spacing-md);
+  }
+  
+  .header-title h1 {
+    font-size: 1.2rem;
+  }
+  
+  .btn {
+    padding: var(--spacing-xs) var(--spacing-sm);
+  }
+  
+  .header-controls {
+    gap: var(--spacing-xs);
+  }
+  
+  /* Ocultar texto en botones y mostrar solo iconos */
+  .btn span:not(.icon) {
+    display: none;
+  }
+  
+  .icon {
+    margin-right: 0;
+  }
+  
+  /* Ajustar posición del tooltip */
+  .header-controls .btn::before {
+    bottom: -25px;
+    font-size: 0.7rem;
+    padding: 3px 6px;
+  }
+}
+
+/* Soporte para navegadores sin compatibilidad con variables CSS */
+@supports not (--foo: green) {
+  .app-header {
+    background-color: #1a73e8;
+    color: white;
+    padding: 0 24px;
+    height: 60px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+  
+  .header-controls {
+    margin-left: 12px;
+  }
+  
+  #uploadJSON:hover {
+    background-color: #1669d9;
+  }
+  
+  #clearGraph:hover {
+    background-color: #d32f2f;
+  }
+}
