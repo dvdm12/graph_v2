@@ -6,6 +6,7 @@ import com.example.miapp.repository.DataManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
@@ -17,20 +18,13 @@ import java.util.stream.IntStream;
 /**
  * Servicio para generar asignaciones a partir de profesores y materias.
  * Implementa procesamiento paralelo para mejorar el rendimiento.
+ * Actualizado para respetar las restricciones horarias institucionales.
  */
 public class ProfessorAssignmentGenerator {
     private static final Logger logger = LoggerFactory.getLogger(ProfessorAssignmentGenerator.class);
     
     // Constantes para la generación
-    private static final String[] DAYS = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"};
-    private static final LocalTime[][] TIME_SLOTS = {
-        {LocalTime.of(7, 0), LocalTime.of(9, 0)},
-        {LocalTime.of(9, 0), LocalTime.of(11, 0)},
-        {LocalTime.of(11, 0), LocalTime.of(13, 0)},
-        {LocalTime.of(14, 0), LocalTime.of(16, 0)},
-        {LocalTime.of(16, 0), LocalTime.of(18, 0)},
-        {LocalTime.of(18, 0), LocalTime.of(20, 0)}
-    };
+    private static final String[] DAYS = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
     
     // Configuración para ejecución paralela
     private static final int MIN_ASSIGNMENTS_FOR_PARALLEL = 100; // Umbral para usar paralelismo
@@ -133,248 +127,271 @@ public class ProfessorAssignmentGenerator {
     }
     
     /**
- * Implementación paralela para generar asignaciones.
- * Divide el trabajo en lotes y los procesa en paralelo.
- */
-private List<Assignment> generateAssignmentsParallel(LocalDate startDate, int count) {
-    // Obtener y validar los recursos necesarios
-    ResourceBundle resources = validateAndGetResources();
-    if (resources == null) {
-        return Collections.emptyList();
-    }
-    
-    // Configuración de lotes
-    BatchConfig batchConfig = createBatchConfig(count);
-    logger.debug("Dividiendo {} asignaciones en {} lotes de tamaño ~{}", 
-               count, batchConfig.batches, BATCH_SIZE);
-    
-    // Crear y ejecutar tareas en paralelo
-    List<CompletableFuture<List<Assignment>>> futures = createBatchTasks(
-        startDate, batchConfig, resources);
-    
-    // Combinar resultados
-    return combineResults(futures);
-}
-
-/**
- * Clase auxiliar para mantener la configuración de lotes.
- */
-private static class BatchConfig {
-    final int batches;
-    final AtomicInteger counter;
-    
-    BatchConfig(int batches) {
-        this.batches = batches;
-        this.counter = new AtomicInteger(0);
-    }
-    
-    int getAndIncrementId() {
-        return counter.incrementAndGet();
-    }
-}
-
-/**
- * Clase auxiliar para agrupar los recursos necesarios para la generación.
- */
-private static class ResourceBundle {
-    final List<Professor> professors;
-    final List<Room> rooms;
-    
-    ResourceBundle(List<Professor> professors, List<Room> rooms) {
-        this.professors = professors;
-        this.rooms = rooms;
-    }
-}
-
-/**
- * Valida que existan los recursos necesarios y los devuelve agrupados.
- */
-private ResourceBundle validateAndGetResources() {
-    List<Professor> professors = dataManager.getAllProfessors();
-    List<Room> rooms = dataManager.getAllRooms();
-    
-    // Verificar que hay entidades para generar asignaciones
-    if (professors.isEmpty()) {
-        logger.warn("No hay profesores disponibles para generar asignaciones");
-        return null;
-    }
-    
-    if (rooms.isEmpty()) {
-        logger.warn("No hay aulas disponibles para generar asignaciones");
-        return null;
-    }
-    
-    return new ResourceBundle(professors, rooms);
-}
-
-/**
- * Crea la configuración de lotes basada en el número total de asignaciones.
- */
-private BatchConfig createBatchConfig(int count) {
-    // Calcular número de lotes redondeando hacia arriba
-    int batches = (count + BATCH_SIZE - 1) / BATCH_SIZE;
-    return new BatchConfig(batches);
-}
-
-/**
- * Crea y lanza las tareas en paralelo para generar asignaciones por lotes.
- */
-private List<CompletableFuture<List<Assignment>>> createBatchTasks(
-        LocalDate startDate, BatchConfig batchConfig, ResourceBundle resources) {
-    
-    List<CompletableFuture<List<Assignment>>> futures = new ArrayList<>();
-    
-    for (int i = 0; i < batchConfig.batches; i++) {
-        // Calcular tamaño del lote actual (el último puede ser más pequeño)
-        int batchNumber = i;
-        int totalCount = batchConfig.batches * BATCH_SIZE;
-        int batchCount = Math.min(BATCH_SIZE, totalCount - (i * BATCH_SIZE));
+     * Implementación paralela para generar asignaciones.
+     * Divide el trabajo en lotes y los procesa en paralelo.
+     */
+    private List<Assignment> generateAssignmentsParallel(LocalDate startDate, int count) {
+        // Obtener y validar los recursos necesarios
+        ResourceBundle resources = validateAndGetResources();
+        if (resources == null) {
+            return Collections.emptyList();
+        }
         
-        // Crear una copia del generador aleatorio con una semilla derivada para este lote
-        Random batchRandom = new Random(seed + i);
+        // Configuración de lotes
+        BatchConfig batchConfig = createBatchConfig(count);
+        logger.debug("Dividiendo {} asignaciones en {} lotes de tamaño ~{}", 
+                   count, batchConfig.batches, BATCH_SIZE);
         
-        // Crear y ejecutar la tarea para este lote
-        CompletableFuture<List<Assignment>> batchFuture = CompletableFuture.supplyAsync(
-            () -> generateBatch(startDate, batchNumber, batchCount, batchRandom, 
-                                resources, batchConfig),
-            executor);
+        // Crear y ejecutar tareas en paralelo
+        List<CompletableFuture<List<Assignment>>> futures = createBatchTasks(
+            startDate, batchConfig, resources);
         
-        futures.add(batchFuture);
+        // Combinar resultados
+        return combineResults(futures);
     }
     
-    return futures;
-}
-
-/**
- * Genera un lote de asignaciones como parte del procesamiento paralelo.
- */
-private List<Assignment> generateBatch(
-        LocalDate startDate, int batchNumber, int batchCount, Random batchRandom,
-        ResourceBundle resources, BatchConfig batchConfig) {
-    
-    List<Assignment> batchAssignments = new ArrayList<>();
-    int batchGenerated = 0;
-    int batchAttempts = 0;
-    int maxBatchAttempts = batchCount * 5; // Más intentos para evitar bloqueos
-    
-    while (batchGenerated < batchCount && batchAttempts < maxBatchAttempts) {
-        batchAttempts++;
+    /**
+     * Clase auxiliar para mantener la configuración de lotes.
+     */
+    private static class BatchConfig {
+        final int batches;
+        final AtomicInteger counter;
         
-        // Intentar crear una asignación
-        Optional<Assignment> result = tryCreateAssignment(
-            startDate, batchRandom, resources, batchConfig, batchGenerated);
+        BatchConfig(int batches) {
+            this.batches = batches;
+            this.counter = new AtomicInteger(0);
+        }
         
-        if (result.isPresent()) {
-            Assignment assignment = result.get();
-            batchAssignments.add(assignment);
-            batchGenerated++;
-            
-            logger.trace("Lote {}: Generada asignación #{}: id={}, profesor={}, aula={}",
-                       batchNumber + 1, batchGenerated, assignment.getId(), 
-                       assignment.getProfessorName(), assignment.getRoomName());
+        int getAndIncrementId() {
+            return counter.incrementAndGet();
         }
     }
     
-    logger.debug("Lote {} completado: {} asignaciones generadas en {} intentos", 
-               batchNumber + 1, batchGenerated, batchAttempts);
-    
-    return batchAssignments;
-}
-
-/**
- * Intenta crear una asignación aleatoria como parte de un lote.
- */
-private Optional<Assignment> tryCreateAssignment(
-        LocalDate startDate, Random random, ResourceBundle resources, 
-        BatchConfig batchConfig, int batchIndex) {
-    
-    // Seleccionar un profesor aleatorio
-    Professor professor = resources.professors.get(random.nextInt(resources.professors.size()));
-    
-    // Verificar que el profesor tenga materias asignadas
-    List<Subject> professorSubjects = professor.getSubjects();
-    if (professorSubjects.isEmpty()) {
-        return Optional.empty();
+    /**
+     * Clase auxiliar para agrupar los recursos necesarios para la generación.
+     */
+    private static class ResourceBundle {
+        final List<Professor> professors;
+        final List<Room> rooms;
+        
+        ResourceBundle(List<Professor> professors, List<Room> rooms) {
+            this.professors = professors;
+            this.rooms = rooms;
+        }
     }
     
-    // Seleccionar una materia aleatoria de las asignadas al profesor
-    Subject subject = professorSubjects.get(random.nextInt(professorSubjects.size()));
-    
-    // Seleccionar una sala compatible con los requisitos de la materia
-    List<Room> compatibleRooms = resources.rooms.stream()
-        .filter(room -> room.isCompatibleWithLabRequirement(subject.requiresLab()))
-        .collect(Collectors.toList());
-    
-    if (compatibleRooms.isEmpty()) {
-        return Optional.empty();
+    /**
+     * Valida que existan los recursos necesarios y los devuelve agrupados.
+     */
+    private ResourceBundle validateAndGetResources() {
+        List<Professor> professors = dataManager.getAllProfessors();
+        List<Room> rooms = dataManager.getAllRooms();
+        
+        // Verificar que hay entidades para generar asignaciones
+        if (professors.isEmpty()) {
+            logger.warn("No hay profesores disponibles para generar asignaciones");
+            return null;
+        }
+        
+        if (rooms.isEmpty()) {
+            logger.warn("No hay aulas disponibles para generar asignaciones");
+            return null;
+        }
+        
+        return new ResourceBundle(professors, rooms);
     }
     
-    Room room = compatibleRooms.get(random.nextInt(compatibleRooms.size()));
-    
-    // Seleccionar día y hora aleatorios
-    String day = DAYS[random.nextInt(DAYS.length)];
-    int timeSlotIndex = random.nextInt(TIME_SLOTS.length);
-    LocalTime startTime = TIME_SLOTS[timeSlotIndex][0];
-    LocalTime endTime = TIME_SLOTS[timeSlotIndex][1];
-    
-    // Verificar que el profesor no tenga conflicto con una franja bloqueada
-    if (professor.hasBlockedSlotConflict(day, startTime, endTime)) {
-        return Optional.empty();
+    /**
+     * Crea la configuración de lotes basada en el número total de asignaciones.
+     */
+    private BatchConfig createBatchConfig(int count) {
+        // Calcular número de lotes redondeando hacia arriba
+        int batches = (count + BATCH_SIZE - 1) / BATCH_SIZE;
+        return new BatchConfig(batches);
     }
     
-    // Generar ID único para la asignación (de manera segura con el contador atómico)
-    int assignmentId = batchConfig.getAndIncrementId();
+    /**
+     * Crea y lanza las tareas en paralelo para generar asignaciones por lotes.
+     */
+    private List<CompletableFuture<List<Assignment>>> createBatchTasks(
+            LocalDate startDate, BatchConfig batchConfig, ResourceBundle resources) {
+        
+        List<CompletableFuture<List<Assignment>>> futures = new ArrayList<>();
+        
+        for (int i = 0; i < batchConfig.batches; i++) {
+            // Calcular tamaño del lote actual (el último puede ser más pequeño)
+            int batchNumber = i;
+            int totalCount = batchConfig.batches * BATCH_SIZE;
+            int batchCount = Math.min(BATCH_SIZE, totalCount - (i * BATCH_SIZE));
+            
+            // Crear una copia del generador aleatorio con una semilla derivada para este lote
+            Random batchRandom = new Random(seed + i);
+            
+            // Crear y ejecutar la tarea para este lote
+            CompletableFuture<List<Assignment>> batchFuture = CompletableFuture.supplyAsync(
+                () -> generateBatch(startDate, batchNumber, batchCount, batchRandom, 
+                                resources, batchConfig),
+                executor);
+            
+            futures.add(batchFuture);
+        }
+        
+        return futures;
+    }
     
-    // Generar un número aleatorio de estudiantes dentro del límite de capacidad
-    int maxStudents = room.getCapacity();
-    int minStudents = Math.min(10, maxStudents); // Al menos 10 estudiantes si es posible
-    int enrolledStudents = minStudents + random.nextInt(maxStudents - minStudents + 1);
+    /**
+     * Genera un lote de asignaciones como parte del procesamiento paralelo.
+     */
+    private List<Assignment> generateBatch(
+            LocalDate startDate, int batchNumber, int batchCount, Random batchRandom,
+            ResourceBundle resources, BatchConfig batchConfig) {
+        
+        List<Assignment> batchAssignments = new ArrayList<>();
+        int batchGenerated = 0;
+        int batchAttempts = 0;
+        int maxBatchAttempts = batchCount * 5; // Más intentos para evitar bloqueos
+        
+        while (batchGenerated < batchCount && batchAttempts < maxBatchAttempts) {
+            batchAttempts++;
+            
+            // Intentar crear una asignación
+            Optional<Assignment> result = tryCreateAssignment(
+                startDate, batchRandom, resources, batchConfig, batchGenerated);
+            
+            if (result.isPresent()) {
+                Assignment assignment = result.get();
+                batchAssignments.add(assignment);
+                batchGenerated++;
+                
+                logger.trace("Lote {}: Generada asignación #{}: id={}, profesor={}, aula={}",
+                           batchNumber + 1, batchGenerated, assignment.getId(), 
+                           assignment.getProfessorName(), assignment.getRoomName());
+            }
+        }
+        
+        logger.debug("Lote {} completado: {} asignaciones generadas en {} intentos", 
+                   batchNumber + 1, batchGenerated, batchAttempts);
+        
+        return batchAssignments;
+    }
     
-    // Crear la asignación
-    Assignment assignment = new Assignment.Builder()
-        .id(assignmentId)
-        .assignmentDate(startDate)
-        .professor(professor)
-        .room(room)
-        .subject(subject)
-        .groupId(assignmentId) // Usar el ID como ID de grupo también
-        .groupName("Grupo " + (char)('A' + (batchIndex % 26))) // A, B, C, ...
-        .day(day)
-        .startTime(startTime)
-        .endTime(endTime)
-        .sessionType(random.nextBoolean() ? "D" : "N") // D o N aleatorio
-        .enrolledStudents(enrolledStudents)
-        .build();
-    
-    return Optional.of(assignment);
-}
-
-/**
- * Combina los resultados de todos los lotes en una única lista ordenada.
- */
-private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>> futures) {
-    try {
-        List<Assignment> allAssignments = futures.stream()
-            .map(CompletableFuture::join)
-            .flatMap(List::stream)
+    /**
+     * Intenta crear una asignación aleatoria como parte de un lote.
+     */
+    private Optional<Assignment> tryCreateAssignment(
+            LocalDate startDate, Random random, ResourceBundle resources, 
+            BatchConfig batchConfig, int batchIndex) {
+        
+        // Seleccionar un profesor aleatorio
+        Professor professor = resources.professors.get(random.nextInt(resources.professors.size()));
+        
+        // Verificar que el profesor tenga materias asignadas
+        List<Subject> professorSubjects = professor.getSubjects();
+        if (professorSubjects.isEmpty()) {
+            return Optional.empty();
+        }
+        
+        // Seleccionar una materia aleatoria de las asignadas al profesor
+        Subject subject = professorSubjects.get(random.nextInt(professorSubjects.size()));
+        
+        // Seleccionar una sala compatible con los requisitos de la materia
+        List<Room> compatibleRooms = resources.rooms.stream()
+            .filter(room -> room.isCompatibleWithLabRequirement(subject.requiresLab()))
             .collect(Collectors.toList());
         
-        logger.info("Generación paralela completada: {} asignaciones generadas", allAssignments.size());
+        if (compatibleRooms.isEmpty()) {
+            return Optional.empty();
+        }
         
-        // Ordenar por ID para mantener consistencia
-        allAssignments.sort(Comparator.comparingInt(Assignment::getId));
+        Room room = compatibleRooms.get(random.nextInt(compatibleRooms.size()));
         
-        return allAssignments;
-    } catch (CompletionException e) {
-        Throwable cause = e.getCause();
-        if (cause instanceof RuntimeException) {
-            throw (RuntimeException) cause;
-        } else {
-            throw new DomainException("Error en la generación paralela: " + cause.getMessage(), cause);
+        // Seleccionar día aleatorio
+        String day = DAYS[random.nextInt(DAYS.length)];
+        
+        // Obtener las franjas horarias válidas para este día
+        DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(day);
+        List<TimeSlot.TimeRange> validSlots = TimeSlot.getValidTimeSlots(dayOfWeek);
+        
+        if (validSlots.isEmpty()) {
+            logger.debug("No hay franjas horarias válidas para día: {}", day);
+            return Optional.empty();
+        }
+        
+        // Seleccionar una franja horaria aleatoria entre las válidas
+        TimeSlot.TimeRange selectedSlot = validSlots.get(random.nextInt(validSlots.size()));
+        LocalTime startTime = selectedSlot.getStart();
+        LocalTime endTime = selectedSlot.getEnd();
+        
+        // Si la franja es muy larga, podemos ajustar la duración (opcional)
+        long durationMinutes = java.time.Duration.between(startTime, endTime).toMinutes();
+        if (durationMinutes > 180) { // Si dura más de 3 horas
+            // Hacer que dure 2 horas
+            endTime = startTime.plusHours(2);
+        }
+        
+        // Verificar que el profesor no tenga conflicto con una franja bloqueada
+        if (professor.hasBlockedSlotConflict(day, startTime, endTime)) {
+            return Optional.empty();
+        }
+        
+        // Generar ID único para la asignación (de manera segura con el contador atómico)
+        int assignmentId = batchConfig.getAndIncrementId();
+        
+        // Generar un número aleatorio de estudiantes dentro del límite de capacidad
+        int maxStudents = room.getCapacity();
+        int minStudents = Math.min(10, maxStudents); // Al menos 10 estudiantes si es posible
+        int enrolledStudents = minStudents + random.nextInt(maxStudents - minStudents + 1);
+        
+        // Crear la asignación
+        try {
+            Assignment assignment = new Assignment.Builder()
+                .id(assignmentId)
+                .assignmentDate(startDate)
+                .professor(professor)
+                .room(room)
+                .subject(subject)
+                .groupId(assignmentId) // Usar el ID como ID de grupo también
+                .groupName("Grupo " + (char)('A' + (batchIndex % 26))) // A, B, C, ...
+                .day(day)
+                .startTime(startTime)
+                .endTime(endTime)
+                .sessionType(random.nextBoolean() ? "D" : "N") // D o N aleatorio
+                .enrolledStudents(enrolledStudents)
+                .build();
+            
+            return Optional.of(assignment);
+        } catch (DomainException e) {
+            // Capturar excepciones para evitar que falle el proceso de generación
+            logger.debug("Error al crear asignación: {}", e.getMessage());
+            return Optional.empty();
         }
     }
-}
     
+    /**
+     * Combina los resultados de todos los lotes en una única lista ordenada.
+     */
+    private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>> futures) {
+        try {
+            List<Assignment> allAssignments = futures.stream()
+                .map(CompletableFuture::join)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
+            
+            logger.info("Generación paralela completada: {} asignaciones generadas", allAssignments.size());
+            
+            // Ordenar por ID para mantener consistencia
+            allAssignments.sort(Comparator.comparingInt(Assignment::getId));
+            
+            return allAssignments;
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            } else {
+                throw new DomainException("Error en la generación paralela: " + cause.getMessage(), cause);
+            }
+        }
+    }
     
     /**
      * Intenta generar una asignación aleatoria.
@@ -413,11 +430,29 @@ private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>
         
         Room room = compatibleRooms.get(random.nextInt(compatibleRooms.size()));
         
-        // Seleccionar día y hora aleatorios
+        // Seleccionar día aleatorio
         String day = DAYS[random.nextInt(DAYS.length)];
-        int timeSlotIndex = random.nextInt(TIME_SLOTS.length);
-        LocalTime startTime = TIME_SLOTS[timeSlotIndex][0];
-        LocalTime endTime = TIME_SLOTS[timeSlotIndex][1];
+        
+        // Obtener franjas válidas para este día
+        DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(day);
+        List<TimeSlot.TimeRange> validSlots = TimeSlot.getValidTimeSlots(dayOfWeek);
+        
+        if (validSlots.isEmpty()) {
+            logger.debug("No hay franjas horarias válidas para día: {}", day);
+            return Optional.empty();
+        }
+        
+        // Seleccionar una franja horaria aleatoria entre las válidas
+        TimeSlot.TimeRange selectedSlot = validSlots.get(random.nextInt(validSlots.size()));
+        LocalTime startTime = selectedSlot.getStart();
+        LocalTime endTime = selectedSlot.getEnd();
+        
+        // Si la franja es muy larga, podemos ajustar la duración
+        long durationMinutes = java.time.Duration.between(startTime, endTime).toMinutes();
+        if (durationMinutes > 180) { // Si dura más de 3 horas
+            // Ajustar a 2 horas de clase
+            endTime = startTime.plusHours(2);
+        }
         
         // Verificar que el profesor no tenga conflicto con una franja bloqueada
         if (professor.hasBlockedSlotConflict(day, startTime, endTime)) {
@@ -435,26 +470,32 @@ private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>
         int enrolledStudents = minStudents + random.nextInt(maxStudents - minStudents + 1);
         
         // Crear la asignación
-        Assignment assignment = new Assignment.Builder()
-            .id(assignmentId)
-            .assignmentDate(startDate)
-            .professor(professor)
-            .room(room)
-            .subject(subject)
-            .groupId(assignmentId) // Usar el ID como ID de grupo también
-            .groupName("Grupo " + (char)('A' + (index % 26))) // A, B, C, ...
-            .day(day)
-            .startTime(startTime)
-            .endTime(endTime)
-            .sessionType(random.nextBoolean() ? "D" : "N") // D o N aleatorio
-            .enrolledStudents(enrolledStudents)
-            .build();
-        
-        logger.debug("Generada asignación #{}: id={}, profesor={}, materia={}, aula={}, día={}, hora={}-{}",
-                   index + 1, assignmentId, professor.getName(), subject.getCode(), 
-                   room.getName(), day, startTime, endTime);
-        
-        return Optional.of(assignment);
+        try {
+            Assignment assignment = new Assignment.Builder()
+                .id(assignmentId)
+                .assignmentDate(startDate)
+                .professor(professor)
+                .room(room)
+                .subject(subject)
+                .groupId(assignmentId) // Usar el ID como ID de grupo también
+                .groupName("Grupo " + (char)('A' + (index % 26))) // A, B, C, ...
+                .day(day)
+                .startTime(startTime)
+                .endTime(endTime)
+                .sessionType(random.nextBoolean() ? "D" : "N") // D o N aleatorio
+                .enrolledStudents(enrolledStudents)
+                .build();
+            
+            logger.debug("Generada asignación #{}: id={}, profesor={}, materia={}, aula={}, día={}, hora={}-{}",
+                       index + 1, assignmentId, professor.getName(), subject.getCode(), 
+                       room.getName(), day, startTime, endTime);
+            
+            return Optional.of(assignment);
+        } catch (DomainException e) {
+            // Si falla la creación de la asignación (por ejemplo, por restricciones de horario)
+            logger.debug("Error al crear asignación: {}", e.getMessage());
+            return Optional.empty();
+        }
     }
     
     /**
@@ -474,15 +515,41 @@ private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>
         while (generated < count && attempts < maxAttempts) {
             attempts++;
             
-            // Día aleatorio
+            // Día aleatorio (incluyendo sábado pero no domingo)
             String day = DAYS[random.nextInt(DAYS.length)];
             
-            // Horario aleatorio
-            int startHour = 7 + random.nextInt(12); // Entre 7 y 18
-            int duration = 1 + random.nextInt(3);   // Entre 1 y 3 horas
+            // Obtener franjas válidas para este día
+            DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(day);
+            List<TimeSlot.TimeRange> validSlots = TimeSlot.getValidTimeSlots(dayOfWeek);
             
-            LocalTime startTime = LocalTime.of(startHour, 0);
-            LocalTime endTime = startTime.plusHours(duration);
+            if (validSlots.isEmpty()) {
+                continue; // No hay franjas válidas para este día
+            }
+            
+            // Seleccionar una franja válida aleatoria como base
+            TimeSlot.TimeRange baseSlot = validSlots.get(random.nextInt(validSlots.size()));
+            
+            // Posibilidad de usar toda la franja o una parte
+            LocalTime startTime, endTime;
+            if (random.nextBoolean()) {
+                // Usar toda la franja
+                startTime = baseSlot.getStart();
+                endTime = baseSlot.getEnd();
+            } else {
+                // Usar una parte aleatoria (mínimo 1 hora)
+                long slotMinutes = java.time.Duration.between(baseSlot.getStart(), baseSlot.getEnd()).toMinutes();
+                if (slotMinutes < 120) { // Si la franja es menor a 2 horas, usar completa
+                    startTime = baseSlot.getStart();
+                    endTime = baseSlot.getEnd();
+                } else {
+                    // Calcular una franja parcial aleatoria (mínimo 1 hora)
+                    int startMinuteOffset = random.nextInt((int)slotMinutes - 60);
+                    int durationMinutes = 60 + random.nextInt((int)slotMinutes - startMinuteOffset - 60 + 1);
+                    
+                    startTime = baseSlot.getStart().plusMinutes(startMinuteOffset);
+                    endTime = startTime.plusMinutes(durationMinutes);
+                }
+            }
             
             // Comprobar si la franja ya existe
             boolean exists = false;
@@ -501,17 +568,21 @@ private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>
             }
             
             // Crear franja bloqueada
-            BlockedSlot slot = new BlockedSlot.Builder()
-                .day(day)
-                .startTime(startTime)
-                .endTime(endTime)
-                .build();
-            
-            professor.addBlockedSlot(slot);
-            generated++;
-            
-            logger.debug("Generada franja bloqueada #{} para profesor id={}: {} {}-{}",
-                       generated, professor.getId(), day, startTime, endTime);
+            try {
+                BlockedSlot slot = new BlockedSlot.Builder()
+                    .day(day)
+                    .startTime(startTime)
+                    .endTime(endTime)
+                    .build();
+                
+                professor.addBlockedSlot(slot);
+                generated++;
+                
+                logger.debug("Generada franja bloqueada #{} para profesor id={}: {} {}-{}",
+                           generated, professor.getId(), day, startTime, endTime);
+            } catch (DomainException e) {
+                logger.debug("Error al crear franja bloqueada: {}", e.getMessage());
+            }
         }
         
         if (attempts >= maxAttempts && generated < count) {
@@ -637,85 +708,127 @@ private List<Assignment> combineResults(List<CompletableFuture<List<Assignment>>
                 }
                 
                 dataManager.addProfessor(professor);
-                logger.debug("Generado profesor id={}: {}, departamento={}, materias={}",
-                           professor.getId(), name, department, professor.getSubjects().size());
-            }
-        }
-    }
-    
-    /**
-     * Versión local de generación de franjas bloqueadas para uso en procesamiento paralelo.
-     * Evita compartir el generador aleatorio principal.
-     */
-    private void generateRandomBlockedSlotsLocal(Professor professor, int count, Random localRandom) {
-        int generated = 0;
-        int attempts = 0;
-        int maxAttempts = count * 3;
-        
-        while (generated < count && attempts < maxAttempts) {
-            attempts++;
-            
-            // Día aleatorio
-            String day = DAYS[localRandom.nextInt(DAYS.length)];
-            
-            // Horario aleatorio
-            int startHour = 7 + localRandom.nextInt(12); // Entre 7 y 18
-            int duration = 1 + localRandom.nextInt(3);   // Entre 1 y 3 horas
-            
-            LocalTime startTime = LocalTime.of(startHour, 0);
-            LocalTime endTime = startTime.plusHours(duration);
-            
-            // Comprobar si la franja ya existe
-            boolean exists = false;
-            for (BlockedSlot existingSlot : professor.getBlockedSlots()) {
-                if (existingSlot.getDay().equals(day) && 
-                    existingSlot.getStartTime().equals(startTime) && 
-                    existingSlot.getEndTime().equals(endTime)) {
-                    exists = true;
-                    break;
-                }
-            }
-            
-            if (exists) {
-                continue;
-            }
-            
-            // Crear franja bloqueada
-            BlockedSlot slot = new BlockedSlot.Builder()
-                .day(day)
-                .startTime(startTime)
-                .endTime(endTime)
-                .build();
-            
-            professor.addBlockedSlot(slot);
-            generated++;
-        }
-    }
-    
-    /**
-     * Devuelve la semilla utilizada por este generador.
-     * Útil para reproducir resultados exactos.
-     * 
-     * @return Semilla del generador
-     */
-    public long getSeed() {
-        return seed;
-    }
-    
-    /**
-     * Libera los recursos del generador.
-     * Debe llamarse cuando ya no se necesita el generador para liberar los hilos.
-     */
-    public void shutdown() {
-        executor.shutdown();
-        try {
-            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            executor.shutdownNow();
-            Thread.currentThread().interrupt();
-        }
-        logger.info("ProfessorAssignmentGenerator shutdown completado");
-    }
+               logger.debug("Generado profesor id={}: {}, departamento={}, materias={}",
+                          professor.getId(), name, department, professor.getSubjects().size());
+           }
+       }
+   }
+   
+   /**
+    * Versión local de generación de franjas bloqueadas para uso en procesamiento paralelo.
+    * Evita compartir el generador aleatorio principal y usa la clase TimeSlot para generar
+    * franjas válidas según las restricciones institucionales.
+    * 
+    * @param professor Profesor para el que generar franjas
+    * @param count Número de franjas a generar
+    * @param localRandom Generador aleatorio local para este hilo
+    */
+   private void generateRandomBlockedSlotsLocal(Professor professor, int count, Random localRandom) {
+       int generated = 0;
+       int attempts = 0;
+       int maxAttempts = count * 3;
+       
+       while (generated < count && attempts < maxAttempts) {
+           attempts++;
+           
+           // Día aleatorio (incluyendo sábado pero no domingo)
+           String day = DAYS[localRandom.nextInt(DAYS.length)];
+           
+           // Obtener franjas válidas para este día
+           DayOfWeek dayOfWeek;
+           List<TimeSlot.TimeRange> validSlots;
+           
+           try {
+               dayOfWeek = TimeSlot.parseDayOfWeek(day);
+               validSlots = TimeSlot.getValidTimeSlots(dayOfWeek);
+               
+               if (validSlots.isEmpty()) {
+                   continue; // No hay franjas válidas para este día
+               }
+           } catch (DomainException e) {
+               continue; // Error al parsear el día o obtener franjas
+           }
+           
+           // Seleccionar una franja válida aleatoria como base
+           TimeSlot.TimeRange baseSlot = validSlots.get(localRandom.nextInt(validSlots.size()));
+           
+           // Posibilidad de usar toda la franja o una parte
+           LocalTime startTime, endTime;
+           if (localRandom.nextBoolean()) {
+               // Usar toda la franja
+               startTime = baseSlot.getStart();
+               endTime = baseSlot.getEnd();
+           } else {
+               // Usar una parte aleatoria (mínimo 1 hora)
+               long slotMinutes = java.time.Duration.between(baseSlot.getStart(), baseSlot.getEnd()).toMinutes();
+               if (slotMinutes < 120) { // Si la franja es menor a 2 horas, usar completa
+                   startTime = baseSlot.getStart();
+                   endTime = baseSlot.getEnd();
+               } else {
+                   // Calcular una franja parcial aleatoria (mínimo 1 hora)
+                   int startMinuteOffset = localRandom.nextInt((int)slotMinutes - 60);
+                   int durationMinutes = 60 + localRandom.nextInt((int)slotMinutes - startMinuteOffset - 60 + 1);
+                   
+                   startTime = baseSlot.getStart().plusMinutes(startMinuteOffset);
+                   endTime = startTime.plusMinutes(durationMinutes);
+               }
+           }
+           
+           // Comprobar si la franja ya existe
+           boolean exists = false;
+           for (BlockedSlot existingSlot : professor.getBlockedSlots()) {
+               if (existingSlot.getDay().equals(day) && 
+                   existingSlot.getStartTime().equals(startTime) && 
+                   existingSlot.getEndTime().equals(endTime)) {
+                   exists = true;
+                   break;
+               }
+           }
+           
+           if (exists) {
+               continue;
+           }
+           
+           // Crear franja bloqueada
+           try {
+               BlockedSlot slot = new BlockedSlot.Builder()
+                   .day(day)
+                   .startTime(startTime)
+                   .endTime(endTime)
+                   .build();
+               
+               professor.addBlockedSlot(slot);
+               generated++;
+           } catch (DomainException e) {
+               // Ignorar errores y seguir intentando
+           }
+       }
+   }
+   
+   /**
+    * Devuelve la semilla utilizada por este generador.
+    * Útil para reproducir resultados exactos.
+    * 
+    * @return Semilla del generador
+    */
+   public long getSeed() {
+       return seed;
+   }
+   
+   /**
+    * Libera los recursos del generador.
+    * Debe llamarse cuando ya no se necesita el generador para liberar los hilos.
+    */
+   public void shutdown() {
+       executor.shutdown();
+       try {
+           if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+               executor.shutdownNow();
+           }
+       } catch (InterruptedException e) {
+           executor.shutdownNow();
+           Thread.currentThread().interrupt();
+       }
+       logger.info("ProfessorAssignmentGenerator shutdown completado");
+   }
 }

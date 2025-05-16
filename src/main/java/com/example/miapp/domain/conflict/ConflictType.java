@@ -51,7 +51,19 @@ public enum ConflictType {
     /**
      * Conflicto por asignar un aula incompatible con los requisitos de la materia.
      */
-    ROOM_COMPATIBILITY("Aula incompatible con requisitos de la materia", Category.RESOURCE);
+    ROOM_COMPATIBILITY("Aula incompatible con requisitos de la materia", Category.RESOURCE),
+    
+    /**
+     * Conflicto por sobrecarga horaria del profesor (franjas consecutivas pesadas).
+     * Se produce cuando un profesor tiene una clase en la franja de 16:00-18:00
+     * y otra en la franja de 18:00-20:00 del mismo día.
+     */
+    PROFESSOR_WORKLOAD("Sobrecarga horaria del profesor (franjas consecutivas pesadas)", Category.PROFESSOR),
+    
+    /**
+     * Conflicto por programar una clase fuera de las franjas horarias válidas.
+     */
+    INVALID_TIME_SLOT("Horario fuera de las franjas válidas permitidas", Category.SCHEDULE);
 
     // Caché para búsquedas eficientes por etiqueta
     private static final Map<String, ConflictType> LABEL_MAP = Arrays.stream(values())

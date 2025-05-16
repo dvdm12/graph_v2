@@ -7,15 +7,19 @@ import com.example.miapp.domain.Assignment;
 import com.example.miapp.domain.BlockedSlot;
 import com.example.miapp.domain.Professor;
 import com.example.miapp.domain.Subject;
+import com.example.miapp.domain.TimeSlot;
+import com.example.miapp.domain.conflict.ConflictType;
 
 import com.example.miapp.exception.AssignmentConflictException;
 import com.example.miapp.exception.BlockedSlotConflictException;
 import com.example.miapp.exception.DomainException;
 
+import java.time.DayOfWeek;
 import java.time.Duration;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -102,6 +106,71 @@ public class ConflictDetector {
     }
     
     /**
+     * Verifica si la asignación está programada fuera de las franjas horarias válidas.
+     * 
+     * @param assignment Asignación a verificar
+     * @return true si la asignación está fuera de las franjas válidas, false en caso contrario
+     * @throws NullPointerException si assignment es null
+     */
+    public boolean checkInvalidTimeSlot(Assignment assignment) {
+        Objects.requireNonNull(assignment, "La asignación no puede ser null");
+        
+        try {
+            // Convertir el día de la asignación a DayOfWeek
+            DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(assignment.getDay());
+            
+            // Verificar si el horario está dentro de una franja válida
+            boolean isValid = TimeSlot.isValidTimeRange(
+                dayOfWeek, assignment.getStartTime(), assignment.getEndTime());
+                
+            if (!isValid && logger.isDebugEnabled()) {
+                logger.debug("Assignment {} has invalid time slot: {} {}-{}", 
+                           assignment.getId(), assignment.getDay(), 
+                           assignment.getStartTime(), assignment.getEndTime());
+            }
+            
+            return !isValid; // Retornar true si es inválido (fuera de franjas válidas)
+            
+        } catch (DomainException e) {
+            // Si hay error al parsear el día o validar el rango, considerar que es inválido
+            logger.warn("Error validando franja horaria para asignación {}: {}", 
+                       assignment.getId(), e.getMessage());
+            return true;
+        }
+    }
+    
+    /**
+     * Verifica si entre dos asignaciones del mismo profesor hay un conflicto de sobrecarga horaria.
+     * Detecta el caso específico de una clase en franja 16:00-18:00 seguida de 18:00-20:00.
+     * 
+     * @param a1 Primera asignación
+     * @param a2 Segunda asignación
+     * @return true si hay conflicto de sobrecarga, false en caso contrario
+     * @throws NullPointerException si alguna asignación es null
+     */
+    public boolean checkWorkloadConflict(Assignment a1, Assignment a2) {
+        Objects.requireNonNull(a1, "La primera asignación no puede ser null");
+        Objects.requireNonNull(a2, "La segunda asignación no puede ser null");
+        
+        // Solo verificar si son el mismo día y del mismo profesor
+        if (!a1.getDay().equals(a2.getDay()) || a1.getProfessorId() != a2.getProfessorId()) {
+            return false;
+        }
+        
+        // Usar la validación de TimeSlot
+        boolean hasConflict = TimeSlot.hasWorkloadConflict(
+            a1.getStartTime(), a1.getEndTime(), 
+            a2.getStartTime(), a2.getEndTime());
+            
+        if (hasConflict && logger.isDebugEnabled()) {
+            logger.debug("Workload conflict detected between assignments {} and {}: heavy consecutive slots", 
+                       a1.getId(), a2.getId());
+        }
+        
+        return hasConflict;
+    }
+    
+    /**
      * Verifica si la asignación tiene conflicto con sus propias franjas bloqueadas y lanza una excepción si existe.
      * 
      * @param assignment Asignación a verificar
@@ -132,6 +201,60 @@ public class ConflictDetector {
                 firstConflict.getEndTime().toString());
         }
     }
+    
+    /**
+ * Verifica si la asignación está dentro de las franjas horarias válidas y lanza una excepción si no lo está.
+ * 
+ * @param assignment Asignación a verificar
+ * @throws NullPointerException si assignment es null
+ * @throws DomainException si la asignación está fuera de las franjas horarias válidas
+ */
+public void verifyValidTimeSlot(Assignment assignment) {
+    Objects.requireNonNull(assignment, "La asignación no puede ser null");
+    
+    if (checkInvalidTimeSlot(assignment)) {
+        // Convertir el día para obtener las franjas válidas
+        DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(assignment.getDay());
+        
+        // Obtener las franjas válidas para este día
+        List<TimeSlot.TimeRange> validSlots = TimeSlot.getValidTimeSlots(dayOfWeek);
+        
+        // Construir mensaje de error con las franjas válidas
+        StringBuilder validSlotsStr = new StringBuilder();
+        for (TimeSlot.TimeRange range : validSlots) {
+            if (validSlotsStr.length() > 0) {
+                validSlotsStr.append(", ");
+            }
+            validSlotsStr.append(range.toString());
+        }
+        
+        // Construir el mensaje base
+        StringBuilder errorMessage = new StringBuilder(
+            String.format("La asignación id=%d tiene un horario no válido: %s de %s a %s. Franjas válidas para %s: %s",
+                assignment.getId(), assignment.getDay(), 
+                assignment.getStartTime(), assignment.getEndTime(),
+                assignment.getDay(), validSlotsStr.toString())
+        );
+        
+        // Buscar una alternativa cercana y añadirla al mensaje si existe
+        LocalTime start = assignment.getStartTime();
+        LocalTime end = assignment.getEndTime();
+        Optional<TimeSlot.TimeRange> suggestion = TimeSlot.findClosestValidTimeSlot(
+            dayOfWeek, start, end);
+            
+        if (suggestion.isPresent()) {
+            TimeSlot.TimeRange suggestedRange = suggestion.get();
+            errorMessage.append(String.format(
+                ". Sugerencia: considere la franja %s - %s",
+                suggestedRange.getStart(), suggestedRange.getEnd()));
+                
+            logger.info("Sugerencia para asignación {}: franja válida más cercana: {} - {}", 
+                       assignment.getId(), suggestedRange.getStart(), suggestedRange.getEnd());
+        }
+        
+        throw new DomainException(errorMessage.toString());
+    }
+}
     
     /**
      * Verifica si el profesor está autorizado para impartir la materia de la asignación.
@@ -506,6 +629,15 @@ public class ConflictDetector {
                 }
                 return false;
             }
+            
+            // Verificar conflicto de sobrecarga horaria
+            if (checkWorkloadConflict(a1, a2)) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Incompatible: conflicto de sobrecarga horaria para profesor ({})", 
+                               a1.getProfessorId());
+                }
+                return false;
+            }
         }
         
         // Si llegamos aquí, son compatibles
@@ -556,6 +688,16 @@ public class ConflictDetector {
                 a2.getId(),
                 "GROUP");
         }
+        
+        // Verificar sobrecarga horaria
+        if (checkWorkloadConflict(a1, a2)) {
+            throw new AssignmentConflictException(
+                String.format("Conflicto de sobrecarga horaria: el profesor (id=%d) tiene asignaciones en franjas pesadas consecutivas",
+                        a1.getProfessorId()),
+                a1.getId(),
+                a2.getId(),
+                "PROFESSOR_WORKLOAD");
+        }
     }
     
     /**
@@ -568,48 +710,94 @@ public class ConflictDetector {
     }
     
     /**
-     * Clase para las claves de caché.
-     */
-    private static class CacheKey {
-        private final int id1;
-        private final int id2;
-        private final String day1;
-        private final String day2;
-        private final LocalTime start1;
-        private final LocalTime end1;
-        private final LocalTime start2;
-        private final LocalTime end2;
-        
-        public CacheKey(int id1, int id2, String day1, String day2,
-                      LocalTime start1, LocalTime end1, LocalTime start2, LocalTime end2) {
-            this.id1 = id1;
-            this.id2 = id2;
-            this.day1 = day1;
-            this.day2 = day2;
-            this.start1 = start1;
-            this.end1 = end1;
-            this.start2 = start2;
-            this.end2 = end2;
-        }
-        
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheKey cacheKey = (CacheKey) o;
-            return id1 == cacheKey.id1 &&
-                   id2 == cacheKey.id2 &&
-                   Objects.equals(day1, cacheKey.day1) &&
-                   Objects.equals(day2, cacheKey.day2) &&
-                   Objects.equals(start1, cacheKey.start1) &&
-                   Objects.equals(end1, cacheKey.end1) &&
-                   Objects.equals(start2, cacheKey.start2) &&
-                   Objects.equals(end2, cacheKey.end2);
-        }
-        
-        @Override
-        public int hashCode() {
-            return Objects.hash(id1, id2, day1, day2, start1, end1, start2, end2);
-        }
-    }
+    * Realiza una verificación completa de una asignación para detectar todos los tipos
+    * de conflictos que pueda tener, incluyendo las nuevas restricciones horarias.
+    * 
+    * @param assignment Asignación a verificar
+    * @return Lista de tipos de conflicto detectados (vacía si no hay conflictos)
+    * @throws NullPointerException si assignment es null
+    */
+   public List<ConflictType> validateAssignment(Assignment assignment) {
+       Objects.requireNonNull(assignment, "La asignación no puede ser null");
+       
+       List<ConflictType> conflicts = new ArrayList<>();
+       
+       // Verificar franja horaria válida
+       if (checkInvalidTimeSlot(assignment)) {
+           conflicts.add(ConflictType.INVALID_TIME_SLOT);
+       }
+       
+       // Verificar conflictos con franjas bloqueadas
+       if (checkBlockedSlotConflicts(assignment)) {
+           conflicts.add(ConflictType.PROFESSOR_BLOCKED);
+       }
+       
+       // Verificar autorización profesor-materia
+       if (checkProfessorSubjectMismatch(assignment)) {
+           conflicts.add(ConflictType.PROFESSOR_SUBJECT_MISMATCH);
+       }
+       
+       // Verificar capacidad del aula
+       if (checkRoomCapacityConflict(assignment)) {
+           conflicts.add(ConflictType.ROOM_CAPACITY);
+       }
+       
+       // Verificar compatibilidad aula-materia
+       if (checkRoomCompatibilityConflict(assignment)) {
+           conflicts.add(ConflictType.ROOM_COMPATIBILITY);
+       }
+       
+       if (logger.isDebugEnabled() && !conflicts.isEmpty()) {
+           logger.debug("Assignment {} has {} conflicts: {}", assignment.getId(), 
+                      conflicts.size(), conflicts);
+       }
+       
+       return conflicts;
+   }
+   
+   /**
+    * Clase para las claves de caché.
+    */
+   private static class CacheKey {
+       private final int id1;
+       private final int id2;
+       private final String day1;
+       private final String day2;
+       private final LocalTime start1;
+       private final LocalTime end1;
+       private final LocalTime start2;
+       private final LocalTime end2;
+       
+       public CacheKey(int id1, int id2, String day1, String day2,
+                     LocalTime start1, LocalTime end1, LocalTime start2, LocalTime end2) {
+           this.id1 = id1;
+           this.id2 = id2;
+           this.day1 = day1;
+           this.day2 = day2;
+           this.start1 = start1;
+           this.end1 = end1;
+           this.start2 = start2;
+           this.end2 = end2;
+       }
+       
+       @Override
+       public boolean equals(Object o) {
+           if (this == o) return true;
+           if (o == null || getClass() != o.getClass()) return false;
+           CacheKey cacheKey = (CacheKey) o;
+           return id1 == cacheKey.id1 &&
+                  id2 == cacheKey.id2 &&
+                  Objects.equals(day1, cacheKey.day1) &&
+                  Objects.equals(day2, cacheKey.day2) &&
+                  Objects.equals(start1, cacheKey.start1) &&
+                  Objects.equals(end1, cacheKey.end1) &&
+                  Objects.equals(start2, cacheKey.start2) &&
+                  Objects.equals(end2, cacheKey.end2);
+       }
+       
+       @Override
+       public int hashCode() {
+           return Objects.hash(id1, id2, day1, day2, start1, end1, start2, end2);
+       }
+   }
 }

@@ -2,6 +2,7 @@ package com.example.miapp.domain;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.DayOfWeek;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -71,6 +72,7 @@ public class Assignment {
         // Información adicional
         this.enrolledStudents = b.enrolledStudents;
         
+        // Realizar todas las validaciones estructurales y semánticas
         validateAssignment();
         
         if (logger.isDebugEnabled()) {
@@ -81,8 +83,8 @@ public class Assignment {
 
     /**
      * Valida que los datos de la asignación sean coherentes.
-     * Solo realiza validaciones estructurales, no de conflictos.
-     * @throws DomainException si los datos son incoherentes
+     * Incluye validaciones estructurales y semánticas según las reglas de negocio.
+     * @throws DomainException si los datos son incoherentes o violan alguna regla
      */
     private void validateAssignment() {
         // Validación estructural: el tiempo debe ser coherente
@@ -90,8 +92,68 @@ public class Assignment {
             throw new DomainException("endTime debe ser posterior a startTime");
         }
         
+        // Validación de día de la semana válido
+        validateDay();
+        
+        // Validación de franja horaria según reglas institucionales
+        validateTimeSlot();
+        
         // Las siguientes validaciones se han convertido en métodos de detección de conflictos
         // en lugar de lanzar excepciones durante la creación del objeto
+    }
+    
+    /**
+     * Valida que el día de la semana sea válido.
+     * @throws DomainException si el día no es válido
+     */
+    private void validateDay() {
+        try {
+            // Intentar parsear el día para validarlo
+            TimeSlot.parseDayOfWeek(this.day);
+        } catch (DomainException e) {
+            throw new DomainException("Día de la semana no válido: " + this.day);
+        }
+    }
+    
+    /**
+     * Valida que el horario esté dentro de las franjas permitidas según el día.
+     * @throws DomainException si el horario está fuera de las franjas válidas
+     */
+    private void validateTimeSlot() {
+        try {
+            // Convertir el día a DayOfWeek
+            DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(this.day);
+            
+            // Verificar si el horario está dentro de las franjas válidas
+            if (!TimeSlot.isValidTimeRange(dayOfWeek, this.startTime, this.endTime)) {
+                // Obtener las franjas válidas para incluirlas en el mensaje de error
+                List<TimeSlot.TimeRange> validSlots = TimeSlot.getValidTimeSlots(dayOfWeek);
+                
+                StringBuilder validSlotsStr = new StringBuilder();
+                for (TimeSlot.TimeRange range : validSlots) {
+                    if (validSlotsStr.length() > 0) {
+                        validSlotsStr.append(", ");
+                    }
+                    validSlotsStr.append(range.toString());
+                }
+                
+                // Comprobar si hay una sugerencia de franja cercana
+                StringBuilder errorMsg = new StringBuilder(
+                    String.format("Horario no válido: %s - %s. Franjas válidas para %s: %s", 
+                               this.startTime, this.endTime, this.day, validSlotsStr));
+                               
+                // Añadir sugerencia si existe
+                TimeSlot.findClosestValidTimeSlot(dayOfWeek, this.startTime, this.endTime)
+                    .ifPresent(range -> errorMsg.append(
+                        String.format(". Sugerencia: %s - %s", range.getStart(), range.getEnd()))
+                    );
+                
+                throw new DomainException(errorMsg.toString());
+            }
+        } catch (DomainException e) {
+            // Relanzar la excepción para indicar el problema claramente
+            throw new DomainException("Error validando franja horaria: " + e.getMessage());
+        }
     }
 
     /**
@@ -202,6 +264,36 @@ public class Assignment {
     }
 
     /**
+     * Verifica si hay conflicto de sobrecarga horaria entre esta asignación y otra.
+     * Implementa la regla de que un profesor no debe tener clases en 16:00-18:00 y 18:00-20:00
+     * del mismo día para evitar sobrecarga.
+     * 
+     * @param other La otra asignación para verificar
+     * @return true si hay conflicto de sobrecarga, false en caso contrario
+     * @throws NullPointerException si other es null
+     */
+    public boolean hasWorkloadConflictWith(Assignment other) {
+        Objects.requireNonNull(other, "La asignación a comparar no puede ser null");
+        
+        // Solo verificar si son el mismo día y mismo profesor
+        if (!this.day.equals(other.day) || this.professor.getId() != other.professor.getId()) {
+            return false;
+        }
+        
+        // Usar la clase TimeSlot para verificar el conflicto específico
+        boolean hasConflict = TimeSlot.hasWorkloadConflict(
+            this.startTime, this.endTime,
+            other.startTime, other.endTime);
+            
+        if (hasConflict && logger.isDebugEnabled()) {
+            logger.debug("Workload conflict between id={} and id={}: consecutive heavy time slots",
+                       this.id, other.id);
+        }
+        
+        return hasConflict;
+    }
+
+    /**
      * Calcula los conflictos entre esta asignación y otra.
      * @param other La otra asignación a comparar
      * @return Mapa de tipos de conflicto y sus aristas correspondientes
@@ -256,6 +348,41 @@ public class Assignment {
                 }
             }
             
+            // Verificar franja bloqueada (auto-conflicto)
+            if (hasBlockedSlotConflict()) {
+                selfConflicts
+                    .computeIfAbsent("blockedSlot", k -> new java.util.ArrayList<>())
+                    .add(new ConflictEdge(ConflictType.PROFESSOR_BLOCKED));
+                    
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Blocked slot conflict detected for assignment id={}: professor={}, day={}, time={}-{}",
+                               this.id, this.professor.getName(), this.day, this.startTime, this.endTime);
+                }
+            }
+            
+            // Verificar franja horaria válida (auto-conflicto)
+            try {
+                DayOfWeek dayOfWeek = TimeSlot.parseDayOfWeek(this.day);
+                if (!TimeSlot.isValidTimeRange(dayOfWeek, this.startTime, this.endTime)) {
+                    selfConflicts
+                        .computeIfAbsent("invalidTimeSlot", k -> new java.util.ArrayList<>())
+                        .add(new ConflictEdge(ConflictType.INVALID_TIME_SLOT));
+                        
+                    if (logger.isDebugEnabled()) {
+                        logger.debug("Invalid time slot detected for assignment id={}: day={}, time={}-{}",
+                                   this.id, this.day, this.startTime, this.endTime);
+                    }
+                }
+            } catch (DomainException e) {
+                selfConflicts
+                    .computeIfAbsent("invalidTimeSlot", k -> new java.util.ArrayList<>())
+                    .add(new ConflictEdge(ConflictType.INVALID_TIME_SLOT));
+                    
+                if (logger.isDebugEnabled()) {
+                    logger.debug("Invalid time slot detected for assignment id={}: {}", this.id, e.getMessage());
+                }
+            }
+            
             return selfConflicts;
         }
         
@@ -276,6 +403,7 @@ public class Assignment {
         checkRoomConflict(other, conflicts);
         checkGroupConflict(other, conflicts);
         checkSessionTypeConflict(other, conflicts);
+        checkWorkloadConflict(other, conflicts);
         
         // Registrar resultado
         if (conflicts.isEmpty()) {
@@ -393,7 +521,26 @@ public class Assignment {
             }
         }
     }
-
+    
+    /**
+     * Verifica si hay conflicto de sobrecarga horaria entre esta asignación y otra.
+     * 
+     * @param other La otra asignación para comparar
+     * @param conflicts Mapa donde se añadirá el conflicto si existe
+     */
+    private void checkWorkloadConflict(Assignment other, Map<String, List<ConflictEdge>> conflicts) {
+        if (hasWorkloadConflictWith(other)) {
+            conflicts
+                .computeIfAbsent("workload", k -> new java.util.ArrayList<>())
+                .add(new ConflictEdge(ConflictType.PROFESSOR_WORKLOAD));
+                
+            if (logger.isDebugEnabled()) {
+                logger.debug("Workload conflict detected: id={} and id={} cause heavy consecutive workload for professor (id={})",
+                           this.id, other.id, this.professor.getId());
+            }
+        }
+    }
+    
     /**
      * Crea un builder pre-configurado con todos los valores actuales.
      * Facilita la creación de copias modificadas.

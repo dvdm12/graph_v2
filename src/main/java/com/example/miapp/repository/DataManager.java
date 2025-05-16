@@ -1,6 +1,7 @@
 package com.example.miapp.repository;
 
 import com.example.miapp.domain.*;
+import com.example.miapp.domain.TimeSlot.TimeRange;
 import com.example.miapp.exception.DomainException;
 import com.example.miapp.persistence.DataManagerPersistence;
 
@@ -8,8 +9,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.TextStyle;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -47,6 +50,8 @@ public class DataManager {
         }
         return instance;
     }
+
+    
     
     /**
      * Inicializa el sistema con algunos datos predeterminados.
@@ -59,47 +64,227 @@ public class DataManager {
         initializeDefaultRooms();
         
         // Podríamos inicializar profesores, etc. si fuera necesario
+         initializeDefaultProfessors();
     }
+
+    private void initializeDefaultProfessors() {
+    logger.info("Comenzando inicialización de 20 profesores por defecto");
+
+    // 1) Nombres colombianos
+    List<String> names = List.of(
+        "David Mantilla Aviles",
+        "María Fernanda López Gómez",
+        "Juan Camilo Pérez Torres",
+        "Catalina Rodríguez Martínez",
+        "Andrés Felipe Ramírez Ruiz",
+        "Laura Isabel Gómez Silva",
+        "Sebastián Hernández Castro",
+        "Valentina Sánchez Moreno",
+        "Diego Alejandro Vargas Díaz",
+        "Paula Andrea Mendoza Rojas",
+        "Carlos Eduardo Morales Ibañez",
+        "Natalia Jiménez Herrera",
+        "Miguel Ángel Romero Gil",
+        "Daniela Patricia Ortiz León",
+        "Santiago Castro Villamil",
+        "Alejandra Ruiz Pacheco",
+        "José Luis Fernández Vargas",
+        "Camila Álvarez Suárez",
+        "Andrés Mauricio Silva Rincón",
+        "María Paula Torres Escobar"
+    );
+
+    // 2) Materias disponibles
+    List<Subject> subjectList = new ArrayList<>(subjects.values());
+
+    // 3) Días válidos (solo de lunes a viernes)
+    List<DayOfWeek> days = List.of(
+        DayOfWeek.MONDAY,
+        DayOfWeek.TUESDAY,
+        DayOfWeek.WEDNESDAY,
+        DayOfWeek.THURSDAY,
+        DayOfWeek.FRIDAY
+    );
+
+    for (int i = 0; i < names.size(); i++) {
+        String fullName = names.get(i);
+        // Generar email: minúsculas, sin tildes, espacios → puntos
+        String email = fullName.toLowerCase(Locale.ROOT)
+            .replace("á","a").replace("é","e")
+            .replace("í","i").replace("ó","o")
+            .replace("ú","u").replace("ñ","n")
+            .replaceAll("\\s+", "\\.") + "@universidad.edu";
+
+        // Crear profesor (usa el constructor que autogenera el ID)
+        Professor prof = new Professor(fullName, "Facultad de Ingeniería", email);
+
+        // Asignar 3 materias rotativas
+        int base = i * 3;
+        Subject s1 = subjectList.get( base      % subjectList.size());
+        Subject s2 = subjectList.get((base + 1) % subjectList.size());
+        Subject s3 = subjectList.get((base + 2) % subjectList.size());
+        prof.assignSubject(s1);
+        prof.assignSubject(s2);
+        prof.assignSubject(s3);
+
+        // Seleccionar un día y una franja válida
+        DayOfWeek dow = days.get(i % days.size());
+        List<TimeRange> ranges = TimeSlot.getValidTimeSlots(dow);
+        TimeRange range = ranges.get(i % ranges.size());  // rotar entre las franjas
+        String dayString = dow.getDisplayName(TextStyle.FULL, Locale.ENGLISH);  // "Monday", …
+
+        // Añadir el bloque respetando los TimeSlots del dominio
+        prof.addBlockedSlot(dayString, range.getStart(), range.getEnd());
+
+        // Registrar y guardar
+        addProfessor(prof);
+        logger.debug(
+            "  Profesor creado: id={}, nombre='{}', materias=[{},{},{}], bloque={} {}-{}",
+            prof.getId(),
+            fullName,
+            s1.getCode(), s2.getCode(), s3.getCode(),
+            dayString,
+            range.getStart(), range.getEnd()
+        );
+    }
+
+    logger.info("Finalizada inicialización de {} profesores por defecto", professors.size());
+}
     
-    /**
-     * Inicializa algunas materias predefinidas.
-     */
     private void initializeDefaultSubjects() {
-        // Matemáticas
-        addSubject(new Subject("MAT101", "Cálculo I", "Introducción al cálculo diferencial e integral", 4, false));
-        addSubject(new Subject("MAT102", "Álgebra Lineal", "Vectores, matrices y sistemas lineales", 3, false));
-        addSubject(new Subject("MAT201", "Ecuaciones Diferenciales", "EDOs y sistemas diferenciales", 4, false));
-        
-        // Informática
-        addSubject(new Subject("CS101", "Programación Básica", "Fundamentos de programación", 4, true));
-        addSubject(new Subject("CS102", "Estructuras de Datos", "Algoritmos y estructuras de datos", 4, true));
-        addSubject(new Subject("CS103", "Algoritmos", "Análisis y diseño de algoritmos", 3, false));
-        addSubject(new Subject("CS104", "Bases de Datos", "Diseño y gestión de bases de datos", 4, true));
-        addSubject(new Subject("CS105", "Redes", "Fundamentos de redes de computadoras", 3, true));
-        
-        // Física
-        addSubject(new Subject("PHY101", "Física General", "Mecánica clásica y termodinámica", 4, true));
-        addSubject(new Subject("PHY102", "Electricidad y Magnetismo", "Fundamentos de electromagnetismo", 4, true));
-    }
+    // Ingeniería de Software y áreas relacionadas
+    addSubject(new Subject("ADMBD"   , "Administración de Bases de Datos", "", 3, false));
+    addSubject(new Subject("ALGLIN"  , "Álgebra Lineal"                , "", 3, false));
+    addSubject(new Subject("ANLALG"  , "Análisis Algorítmico"          , "", 3, false));
+    addSubject(new Subject("ANLNUM"  , "Análisis Numérico"             , "", 3, false));
+    addSubject(new Subject("ARCSW"   , "Arquitecturas de Software"     , "", 3, false));
+    addSubject(new Subject("CONAPPE" , "Construcción de APP Empresariales", "", 3, false));
+    addSubject(new Subject("CONAPPM" , "Construcción de APP Móviles"    , "", 3, false));
+    addSubject(new Subject("CECAL"   , "Control Estadístico de Calidad", "", 3, false));
+    addSubject(new Subject("CONPRO"  , "Control de Procesos"           , "", 3, false));
+    addSubject(new Subject("CULINV"  , "Cultura Investigativa"         , "", 2, false));
+    addSubject(new Subject("CATPAZ"  , "Cátedra de la Paz - 3 Grupos Opción de Grado", "", 2, false));
+
+    // Diseño y desarrollo
+    addSubject(new Subject("DSNMEC"  , "Diseño Mecánico"               , "", 3, false));
+    addSubject(new Subject("DSNALG"  , "Diseño de Algoritmos"          , "", 3, false));
+    addSubject(new Subject("DSNBD"   , "Diseño de Bases de Datos"      , "", 3, false));
+    addSubject(new Subject("DSNSW"   , "Diseño de Software"            , "", 3, false));
+    addSubject(new Subject("DSNMEC2" , "Diseño Mecatrónico II"         , "", 3, false));
+
+    // Desarrollo y procesos
+    addSubject(new Subject("DEVSW"   , "Desarrollo de Software"        , "", 4, false));
+    addSubject(new Subject("DEVEMP"  , "Desarrollo en Equipo"          , "", 2, false));
+    addSubject(new Subject("PROINT"  , "Proyecto Integrador"           , "", 4, false));
+
+    // Electivas
+    addSubject(new Subject("ELCIPY"  , "Electiva I - Python"           , "", 2, false));
+    addSubject(new Subject("ELCISST" , "Electiva I - Seguridad y Salud en el Trabajo", "", 2, false));
+    addSubject(new Subject("ELCIIT"  , "Electiva II - Inglés Técnico"  , "", 2, false));
+    addSubject(new Subject("ELCIET"  , "Electiva III - Ética Profesional", "", 2, false));
+    addSubject(new Subject("ELCIIE"  , "Electiva IV - Innovación y Emprendimiento", "", 2, false));
+    addSubject(new Subject("ELCVGP"  , "Electiva V - Gestión de Proyectos", "", 2, false));
+    addSubject(new Subject("ELCVDK"  , "Electiva VI - Contenedores Docker", "", 2, false));
+    addSubject(new Subject("ELCVLM"  , "Electiva VI - Lean Manufacturing", "", 2, false));
+
+    // Fundamentos y matemáticas
+    addSubject(new Subject("ESTPROB" , "Estadística y Probabilidad"    , "", 3, false));
+    addSubject(new Subject("ESTINF"  , "Estadística Inferencial"       , "", 3, false));
+    addSubject(new Subject("MATDIS"  , "Matemáticas Discretas"         , "", 3, false));
+    addSubject(new Subject("MATI"    , "Matemáticas I"                 , "", 3, false));
+    addSubject(new Subject("MATII"   , "Matemáticas II"                , "", 3, false));
+    addSubject(new Subject("MATIII"  , "Matemáticas III"               , "", 3, false));
+    addSubject(new Subject("MATIV"   , "Matemáticas IV"                , "", 3, false));
+    addSubject(new Subject("MATV"    , "Matemáticas V"                 , "", 3, false));
+
+    // Ciencias básicas
+    addSubject(new Subject("FISIA"   , "Física I"                      , "", 4, true));
+    addSubject(new Subject("FISII"   , "Física II"                     , "", 4, true));
+    addSubject(new Subject("ELEFUN"  , "Fundamentos de Electricidad"   , "", 3, false));
+
+    // Ingeniería y proyectos
+    addSubject(new Subject("GPSW"    , "Gestión de Proyectos de Software", "", 3, false));
+    addSubject(new Subject("INGREQ"  , "Ingeniería de Requisitos"      , "", 3, false));
+    addSubject(new Subject("IO"      , "Investigación de Operaciones"  , "", 3, false));
+    addSubject(new Subject("MNDTEC"  , "Modelos de Negocio Tecnológicos", "", 2, false));
+    addSubject(new Subject("ORBARC"  , "Organización y Arquitectura de Computadores", "", 3, false));
+    addSubject(new Subject("PARPRO"  , "Paradigmas de Programación"    , "", 3, false));
+    addSubject(new Subject("PLCPRO"  , "Planificación y Control de la Producción", "", 3, false));
+    addSubject(new Subject("PRCADM"  , "Procesos Administrativos"       , "", 3, false));
+    addSubject(new Subject("PRCIND"  , "Procesos Industriales"         , "", 3, false));
+    addSubject(new Subject("PRCIND2" , "Procesos Industriales II"      , "", 3, false));
+    addSubject(new Subject("PRODAT"  , "Producción I"                  , "", 3, false));
+
+    // Redes y sistemas
+    addSubject(new Subject("PROWEB"  , "Programación Web"              , "", 3, true));
+    addSubject(new Subject("REDDAT"  , "Redes de Computadores"         , "", 3, true));
+    addSubject(new Subject("SEGINFO" , "Seguridad Informática"         , "", 3, true));
+    addSubject(new Subject("SIMUL"   , "Simulación"                    , "", 3, false));
+    addSubject(new Subject("SISDIN"  , "Sistemas Dinámicos"            , "", 3, false));
+    addSubject(new Subject("SISDIS"  , "Sistemas Distribuidos"         , "", 3, true));
+    addSubject(new Subject("SISOP"   , "Sistemas Operativos"           , "", 4, false));
+    addSubject(new Subject("SISCST"  , "Sistemas y Análisis de Costos" , "", 3, false));
+
+    // Automatización y robótica
+    addSubject(new Subject("ROBIIO"  , "Robótica II"                   , "", 3, true));
+    addSubject(new Subject("VISART"  , "Visión Artificial"             , "", 3, true));
+    addSubject(new Subject("TOPGEO"  , "Topología y Geometría"         , "", 3, false));
+    addSubject(new Subject("TDS"     , "Tratamiento de Señales"       , "", 3, false));
+    addSubject(new Subject("TVAMOV"  , "Tiempos y Movimientos"        , "", 3, false));
+
+    // Ética y formación integral
+    addSubject(new Subject("ETBL02"  , "Ética BLearning - 2 Grupos"    , "", 2, false));
+
+    logger.debug("Inicializadas {} materias por defecto", subjects.size());
+}
+
+
+
+
     
     /**
-     * Inicializa algunas aulas predefinidas.
-     */
-    private void initializeDefaultRooms() {
-        // Aulas normales
-        addRoom(new Room("A101", 40, false));
-        addRoom(new Room("A102", 35, false));
-        addRoom(new Room("A103", 30, false));
-        addRoom(new Room("A104", 45, false));
-        addRoom(new Room("A105", 50, false));
-        
-        // Laboratorios
-        addRoom(new Room("LAB101", 25, true));
-        addRoom(new Room("LAB102", 30, true));
-        addRoom(new Room("LAB103", 20, true));
-        addRoom(new Room("LAB104", 35, true));
-        addRoom(new Room("LAB105", 40, true));
-    }
+ * Inicializa la colección de aulas por defecto.
+ */
+private void initializeDefaultRooms() {
+    // Aulas normales existentes
+    addRoom(new Room("A101", 40, false));
+    addRoom(new Room("A102", 35, false));
+    addRoom(new Room("A103", 30, false));
+    addRoom(new Room("A104", 45, false));
+    addRoom(new Room("A105", 50, false));
+    
+    // Laboratorios existentes
+    addRoom(new Room("LAB101", 25, true));
+    addRoom(new Room("LAB102", 30, true));
+    addRoom(new Room("LAB103", 20, true));
+    addRoom(new Room("LAB104", 35, true));
+    addRoom(new Room("LAB105", 40, true));
+
+    // 10 aulas normales nuevas
+    addRoom(new Room("A106", 28, false));
+    addRoom(new Room("A107", 32, false));
+    addRoom(new Room("A108", 38, false));
+    addRoom(new Room("A109", 42, false));
+    addRoom(new Room("A110", 48, false));
+    addRoom(new Room("A111", 36, false));
+    addRoom(new Room("A112", 31, false));
+    addRoom(new Room("A113", 29, false));
+    addRoom(new Room("A114", 44, false));
+    addRoom(new Room("A115", 52, false));
+
+    // 10 laboratorios nuevos
+    addRoom(new Room("LAB106", 22, true));
+    addRoom(new Room("LAB107", 27, true));
+    addRoom(new Room("LAB108", 18, true));
+    addRoom(new Room("LAB109", 33, true));
+    addRoom(new Room("LAB110", 37, true));
+    addRoom(new Room("LAB111", 24, true));
+    addRoom(new Room("LAB112", 26, true));
+    addRoom(new Room("LAB113", 21, true));
+    addRoom(new Room("LAB114", 39, true));
+    addRoom(new Room("LAB115", 43, true));
+}
+
     
     // ===== Métodos para gestionar profesores =====
     
