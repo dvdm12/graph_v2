@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.*;
@@ -486,49 +487,77 @@ public class AssignmentJsonService {
     }
     
     /**
-     * Analiza las asignaciones del archivo JSON para detectar conflictos
-     * y genera un archivo graph.json con el grafo de conflictos.
-     * 
-     * @param inputJsonPath Ruta del archivo data.json
-     * @param outputGraphPath Ruta donde generar el archivo graph.json
-     * @return Número de conflictos detectados
-     * @throws IOException Si hay errores de lectura/escritura
-     * @throws DomainException Si hay errores procesando los datos
-     */
-    public int generateConflictGraph(String inputJsonPath, String outputGraphPath) 
-            throws IOException, DomainException {
-        logger.info("Iniciando generación de grafo de conflictos");
-        logger.info("Archivo origen: {}", inputJsonPath);
-        logger.info("Archivo destino: {}", outputGraphPath);
-        
-        // Primero carga todas las asignaciones del archivo
-        int numLoaded = loadFromJson(inputJsonPath);
-        
-        if (numLoaded == 0) {
-            throw new DomainException("No se encontraron asignaciones para analizar");
-        }
-        
-        // Cargar las asignaciones en el grafo de conflictos
-        graphLoader.clear();
-        graphLoader.loadAllAssignments();
-        
-        // Obtener estadísticas
-        int totalConflicts = graphLoader.getTotalConflictsCount();
-        Map<ConflictType, Integer> stats = graphLoader.getConflictStatistics();
-        
-        // Mostrar estadísticas
-        logger.info("Análisis completado: {} conflictos detectados", totalConflicts);
-        for (Map.Entry<ConflictType, Integer> entry : stats.entrySet()) {
-            logger.info("  - {}: {}", entry.getKey().getLabel(), entry.getValue());
-        }
-        
-        // Exportar el grafo a JSON
-        graphExporter.exportToJson(outputGraphPath);
-        
-        logger.info("Grafo de conflictos exportado correctamente a: {}", outputGraphPath);
-        
-        return totalConflicts;
+ * Analiza las asignaciones del archivo JSON para detectar conflictos
+ * y genera un archivo graph.json con el grafo de conflictos.
+ * Además, crea una copia en una ubicación absoluta específica.
+ * 
+ * @param inputJsonPath Ruta del archivo data.json
+ * @param outputGraphPath Ruta donde generar el archivo graph.json
+ * @return Número de conflictos detectados
+ * @throws IOException Si hay errores de lectura/escritura
+ * @throws DomainException Si hay errores procesando los datos
+ */
+public int generateConflictGraph(String inputJsonPath, String outputGraphPath) 
+        throws IOException, DomainException {
+    logger.info("Iniciando generación de grafo de conflictos");
+    logger.info("Archivo origen: {}", inputJsonPath);
+    logger.info("Archivo destino principal: {}", outputGraphPath);
+    
+    // Primero carga todas las asignaciones del archivo
+    int numLoaded = loadFromJson(inputJsonPath);
+    
+    if (numLoaded == 0) {
+        throw new DomainException("No se encontraron asignaciones para analizar");
     }
+    
+    // Cargar las asignaciones en el grafo de conflictos
+    graphLoader.clear();
+    graphLoader.loadAllAssignments();
+    
+    // Obtener estadísticas
+    int totalConflicts = graphLoader.getTotalConflictsCount();
+    Map<ConflictType, Integer> stats = graphLoader.getConflictStatistics();
+    
+    // Mostrar estadísticas
+    logger.info("Análisis completado: {} conflictos detectados", totalConflicts);
+    for (Map.Entry<ConflictType, Integer> entry : stats.entrySet()) {
+        logger.info("  - {}: {}", entry.getKey().getLabel(), entry.getValue());
+    }
+    
+    // Exportar el grafo a JSON en la ubicación seleccionada por el usuario
+    graphExporter.exportToJson(outputGraphPath);
+    logger.info("Grafo de conflictos exportado correctamente a: {}", outputGraphPath);
+    
+    // NUEVA FUNCIONALIDAD: Crear copia en directorio predefinido (ruta absoluta)
+    try {
+        // Usar la ruta absoluta específica
+        File backupDir = new File("C:\\graph_project\\graph_two\\graph\\src\\main\\java\\com\\example\\miapp\\ui\\main\\graph_data");
+        
+        // Crear el directorio si no existe
+        if (!backupDir.exists()) {
+            boolean created = backupDir.mkdirs();
+            if (!created) {
+                logger.error("No se pudo crear el directorio de backup: {}", backupDir.getAbsolutePath());
+                return totalConflicts; // Continuar con el flujo normal
+            }
+        }
+        
+        // Generar nombre para la copia (solo una versión sin timestamp)
+        File backupFile = new File(backupDir, "graph.json");
+        
+        // Copiar el archivo generado
+        Files.copy(Paths.get(outputGraphPath), backupFile.toPath(), 
+                  StandardCopyOption.REPLACE_EXISTING);
+        logger.info("Copia de seguridad creada en: {}", backupFile.getAbsolutePath());
+        
+    } catch (Exception e) {
+        // No interrumpir el flujo principal si la copia falla
+        logger.error("Error al crear copia de seguridad del grafo: {}", e.getMessage(), e);
+        // No lanzar la excepción para no interrumpir el flujo normal si solo falló la copia
+    }
+    
+    return totalConflicts;
+}
     
     /**
      * Elimina una asignación del archivo JSON.

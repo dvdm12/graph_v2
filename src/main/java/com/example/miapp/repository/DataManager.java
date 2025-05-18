@@ -113,7 +113,7 @@ public class DataManager {
             .replace("á","a").replace("é","e")
             .replace("í","i").replace("ó","o")
             .replace("ú","u").replace("ñ","n")
-            .replaceAll("\\s+", "\\.") + "@universidad.edu";
+            .replaceAll("\\s+", "\\.") + "@eam.edu";
 
         // Crear profesor (usa el constructor que autogenera el ID)
         Professor prof = new Professor(fullName, "Facultad de Ingeniería", email);

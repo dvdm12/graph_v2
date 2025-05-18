@@ -77,7 +77,7 @@ public class AssignmentBuilder {
         validateRoomCapacity(room, enrolledStudents);
         
         // Validar que no haya conflicto con franjas bloqueadas del profesor
-        validateNoBlockedSlotConflict(professor, day, startTime, endTime);
+        //validateNoBlockedSlotConflict(professor, day, startTime, endTime);
         
         // Validar que el horario esté dentro de las franjas permitidas
         validateTimeSlot(day, startTime, endTime);
