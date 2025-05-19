@@ -1,5 +1,11 @@
 package com.example.miapp.ui.main;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+
 import javax.swing.*;
 import java.awt.*;
 import java.util.List;
@@ -17,11 +23,6 @@ import com.example.miapp.domain.BlockedSlot;
 import com.example.miapp.domain.Professor;
 import com.example.miapp.domain.Assignment;
 import com.example.miapp.repository.DataManager;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Ventana principal avanzada con menú, barra de herramientas,
@@ -404,6 +405,7 @@ public class MainUI extends JFrame {
                     // Configuramos el mismo Look and Feel para mantener la coherencia visual
                     UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                     
+                    // Usar la versión actualizada del visor
                     GraphJsonViewer viewer = new GraphJsonViewer();
                     viewer.setVisible(true);
                 } catch (Exception ex) {
@@ -436,7 +438,7 @@ public class MainUI extends JFrame {
             // Asegurarnos que el grafo de conflictos está actualizado
             generateGraphJson();
             
-            // Abrir la ventana del calendario
+            // Abrir la ventana del calendario (versión simplificada)
             SwingUtilities.invokeLater(() -> {
                 try {
                     UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
@@ -541,7 +543,7 @@ public class MainUI extends JFrame {
             String jsonContent = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
             
             // Guardar el JSON en un archivo
-            Path resourceDir = Paths.get("src", "main", "resources", "com", "example", "miapp", "graph_data");
+            Path resourceDir = Paths.get("com", "example", "miapp", "ui", "main", "graph_data");
             // Asegurar que el directorio exista
             Files.createDirectories(resourceDir);
             

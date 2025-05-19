@@ -31,9 +31,14 @@ public class GraphJsonViewer extends JFrame {
     private static final Color TEXT_COLOR_SECONDARY = new Color(117, 117, 117); // Medium Gray
     private static final Color BORDER_COLOR = new Color(204, 204, 204); // Light Gray Border
 
+    // Componentes UI
     private JTextArea jsonTextArea;
     private JButton openBrowserButton;
     private JButton refreshButton;
+    private JLabel statusLabel;
+
+    // Ruta absoluta al archivo graph.json
+    private final String graphJsonPath = "C:\\graph_project\\graph_two\\graph\\src\\main\\java\\com\\example\\miapp\\ui\\main\\graph_data\\graph.json";
 
     /**
      * Constructor de la interfaz.
@@ -50,13 +55,7 @@ public class GraphJsonViewer extends JFrame {
      */
     private void setLookAndFeel() {
         try {
-            for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    UIManager.setLookAndFeel(info.getClassName());
-                    return;
-                }
-            }
-            // Si Nimbus no está disponible, usa el Look and Feel del sistema
+            // Usar el Look and Feel del sistema para asegurar consistencia
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             logger.log(Level.WARNING, "No se pudo establecer el Look & Feel", e);
@@ -99,21 +98,46 @@ public class GraphJsonViewer extends JFrame {
         scrollPane.setBorder(BorderFactory.createEmptyBorder()); // Sin borde alrededor del scrollPane
         mainPanel.add(scrollPane, BorderLayout.CENTER);
 
-        // Panel inferior con botones alineados a la derecha y con más espacio
+        // Panel inferior
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.setBackground(BACKGROUND_COLOR);
+        
+        // Etiqueta de estado
+        statusLabel = new JLabel("Listo");
+        statusLabel.setFont(new Font("Roboto", Font.ITALIC, 14));
+        statusLabel.setForeground(TEXT_COLOR_SECONDARY);
+        statusLabel.setBorder(new EmptyBorder(5, 0, 0, 0));
+        bottomPanel.add(statusLabel, BorderLayout.WEST);
+        
+        // Panel de botones
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 15)); // Más espacio
         buttonPanel.setBackground(BACKGROUND_COLOR);
 
         // Botón para refrescar el contenido JSON
         refreshButton = createStyledButton("Refrescar JSON", ACCENT_COLOR); // Color de acento
-        refreshButton.addActionListener(e -> loadJsonContent());
+        refreshButton.addActionListener(e -> {
+            statusLabel.setText("Recargando JSON...");
+            SwingUtilities.invokeLater(() -> {
+                loadJsonContent();
+                statusLabel.setText("JSON recargado a las " + 
+                        java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+            });
+        });
 
         // Botón para abrir index.html en Firefox
         openBrowserButton = createStyledButton("Abrir en Navegador", PRIMARY_COLOR); // Color primario
-        openBrowserButton.addActionListener(e -> openIndexHtmlInFirefox());
+        openBrowserButton.addActionListener(e -> {
+            statusLabel.setText("Abriendo en navegador...");
+            SwingUtilities.invokeLater(() -> {
+                openIndexHtmlInFirefox();
+            });
+        });
 
         buttonPanel.add(refreshButton);
         buttonPanel.add(openBrowserButton);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        bottomPanel.add(buttonPanel, BorderLayout.EAST);
+        
+        mainPanel.add(bottomPanel, BorderLayout.SOUTH);
 
         // Agregar el panel principal a la ventana
         setContentPane(mainPanel);
@@ -133,7 +157,37 @@ public class GraphJsonViewer extends JFrame {
         button.setFocusPainted(false);
         button.setBorder(new EmptyBorder(12, 25, 12, 25));
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setUI(new BasicButtonUI()); // Para un aspecto más limpio
+        button.setOpaque(true);  // Importante para mantener el color de fondo
+        button.setContentAreaFilled(false);  // Personalizar la apariencia
+        
+        // Crear un UI personalizado
+        button.setUI(new BasicButtonUI() {
+            @Override
+            public void paint(Graphics g, JComponent c) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Dibujar el fondo del botón
+                JButton b = (JButton) c;
+                if (b.getModel().isPressed()) {
+                    g2.setColor(backgroundColor.darker());
+                } else {
+                    g2.setColor(backgroundColor);
+                }
+                g2.fillRoundRect(0, 0, c.getWidth(), c.getHeight(), 10, 10);
+                
+                // Dibujar el texto
+                g2.setColor(Color.WHITE);
+                FontMetrics fm = g2.getFontMetrics();
+                int textWidth = fm.stringWidth(b.getText());
+                int textHeight = fm.getHeight();
+                int x = (c.getWidth() - textWidth) / 2;
+                int y = (c.getHeight() + textHeight) / 2 - fm.getDescent();
+                g2.drawString(b.getText(), x, y);
+                
+                g2.dispose();
+            }
+        });
 
         // Efecto hover sutil
         button.addMouseListener(new java.awt.event.MouseAdapter() {
@@ -150,42 +204,32 @@ public class GraphJsonViewer extends JFrame {
 
     /**
      * Carga el contenido del archivo graph.json y lo muestra en el área de texto.
+     * Esta versión usa la ruta absoluta para garantizar que se cargue el archivo actualizado.
      */
     private void loadJsonContent() {
         try {
-            // Obtener la ubicación del recurso graph.json
-            InputStream inputStream = getClass().getResourceAsStream("com/example/miapp/graph_data/graph.json");
-
-            if (inputStream == null) {
-                // Si no se encuentra como recurso, intentar buscar en el sistema de archivos
-                Path path = findGraphJsonFile();
-                if (path != null) {
-                    inputStream = Files.newInputStream(path);
-                } else {
-                    throw new FileNotFoundException("No se pudo encontrar el archivo graph.json");
-                }
+            // Usar la ruta absoluta directamente para asegurar que se cargue el archivo actualizado
+            File file = new File(graphJsonPath);
+            
+            if (!file.exists()) {
+                throw new FileNotFoundException("No se pudo encontrar el archivo graph.json en: " + graphJsonPath);
             }
+            
+            logger.info("Cargando graph.json desde: " + graphJsonPath);
+            
+            // Leer el contenido del archivo usando Files para asegurar que se lea la versión más reciente
+            String jsonContent = new String(Files.readAllBytes(file.toPath()), StandardCharsets.UTF_8);
+            
+            // Formatear el JSON para mejor visualización
+            String formattedJson = formatJson(jsonContent);
 
-            // Leer el contenido del archivo
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            // Mostrar en el área de texto
+            jsonTextArea.setText(formattedJson);
+            // Posicionar al inicio del documento
+            jsonTextArea.setCaretPosition(0);
 
-                StringBuilder jsonContent = new StringBuilder();
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    jsonContent.append(line).append("\n");
-                }
-
-                // Formatear el JSON para mejor visualización
-                String formattedJson = formatJson(jsonContent.toString());
-
-                // Mostrar en el área de texto
-                jsonTextArea.setText(formattedJson);
-                // Posicionar al inicio del documento
-                jsonTextArea.setCaretPosition(0);
-
-                logger.info("Archivo graph.json cargado correctamente");
-            }
+            logger.info("Archivo graph.json cargado correctamente desde: " + file.getAbsolutePath());
+            
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error al cargar el archivo graph.json", e);
             jsonTextArea.setText("Error al cargar el archivo graph.json:\n" + e.getMessage());
@@ -194,36 +238,12 @@ public class GraphJsonViewer extends JFrame {
             JOptionPane.showMessageDialog(
                     this,
                     "<html><body style='width: 350px; font-family: \"Roboto\", sans-serif;'>" +
-                            "<h4 style='color: #D32F2F;'>Error al cargar el archivo JSON:</h4>" + // Rojo más oscuro
+                            "<h4 style='color: #D32F2F;'>Error al cargar el archivo JSON:</h4>" +
                             "<p>" + e.getMessage() + "</p></body></html>",
                     "Error",
                     JOptionPane.ERROR_MESSAGE
             );
         }
-    }
-
-    /**
-     * Intenta encontrar el archivo graph.json en varias ubicaciones.
-     */
-    private Path findGraphJsonFile() {
-        // Posibles ubicaciones para el archivo
-        Path[] possiblePaths = {
-                Paths.get("graph.json"),
-                Paths.get("src/main/resources/graph.json"),
-                Paths.get("resources/graph.json"),
-                Paths.get("src/main/resources/com/example/miapp/graph_data/graph.json"),
-                Paths.get("src/com/example/miapp/ui/graph.json"),
-                Paths.get("src/miapp/ui/graph.json")
-        };
-
-        // Verificar cada ubicación
-        for (Path path : possiblePaths) {
-            if (Files.exists(path)) {
-                logger.info("Archivo graph.json encontrado en: " + path.toAbsolutePath());
-                return path;
-            }
-        }
-        return null;
     }
 
     /**
@@ -254,14 +274,7 @@ public class GraphJsonViewer extends JFrame {
                 };
             } else if (os.contains("nix") || os.contains("nux")) {
                 // Linux y otros Unix
-                // Intentar con `firefox` y si falla, con `firefox %u`
-                ProcessBuilder pb = new ProcessBuilder("which", "firefox");
-                Process process = pb.start();
-                if (process.waitFor() == 0) {
-                    command = new String[]{"firefox", indexPath.toAbsolutePath().toString()};
-                } else {
-                    command = new String[]{"firefox", "%u" + indexPath.toAbsolutePath().toString()};
-                }
+                command = new String[]{"firefox", indexPath.toAbsolutePath().toString()};
             } else {
                 // Otro sistema operativo
                 throw new UnsupportedOperationException("El sistema operativo no es compatible con la apertura automática del navegador.");
@@ -269,20 +282,16 @@ public class GraphJsonViewer extends JFrame {
 
             // Ejecutar el comando
             ProcessBuilder processBuilder = new ProcessBuilder(command);
-            Process process = processBuilder.start();
+            // Iniciar el proceso y capturar su referencia (aunque no la usemos después)
+            processBuilder.start();
 
             // Registrar que se ha abierto el navegador
             logger.info("Abriendo index.html en Firefox: " + indexPath.toAbsolutePath());
-
-            // Esperar a que termine (para detectar errores iniciales)
-            int exitCode = process.waitFor();
-
-            if (exitCode != 0) {
-                throw new IOException("Firefox ha salido con código de error: " + exitCode);
-            }
+            statusLabel.setText("Visualizador abierto en Firefox");
 
         } catch (Exception e) {
             logger.log(Level.SEVERE, "Error al abrir index.html en Firefox", e);
+            statusLabel.setText("Error al abrir el navegador");
 
             // Mostrar mensaje de error con un diseño más agradable
             JOptionPane.showMessageDialog(
