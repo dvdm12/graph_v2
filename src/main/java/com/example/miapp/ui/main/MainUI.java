@@ -7,6 +7,11 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.io.FileWriter;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import com.example.miapp.domain.Subject;
 import com.example.miapp.domain.BlockedSlot;
 import com.example.miapp.domain.Professor;
@@ -18,13 +23,15 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
-
 /**
  * Ventana principal avanzada con menú, barra de herramientas,
  * panel lateral y CardLayout para mostrar diferentes interfaces.
  * Incluye visor de grafo de conflictos y gestor de asignaciones.
  */
 public class MainUI extends JFrame {
+    // Botón para abrir calendario de asignaciones
+    private JButton calendarButton;
+    
     private static final long serialVersionUID = 1L;
     private static final Logger logger = Logger.getLogger(MainUI.class.getName());
 
@@ -33,10 +40,12 @@ public class MainUI extends JFrame {
     private final JPanel mainPanel;
     private final DateTimeFormatter dtFmt = DateTimeFormatter.ofPattern("HH:mm:ss");
     
-    
     // Cached panels
     private JPanel professorPanel;
     private JPanel assignmentPanel;
+    
+    // Path para el archivo graph.json generado
+    private Path graphJsonPath;
 
     public MainUI() {
         super("Gestión Académica");
@@ -63,7 +72,6 @@ public class MainUI extends JFrame {
         
         // Añadir paneles al CardLayout
         mainPanel.add(homePanel, "home");
-        mainPanel.add(new ConflictGraphUI(), "conflicts");
         mainPanel.add(new SubjectViewerUI(), "subjects");
         
         // Inicialmente estos paneles no se crean hasta que se necesiten
@@ -100,8 +108,7 @@ public class MainUI extends JFrame {
         JMenuItem miGrafo = new JMenuItem("Visualizar Grafo");
         miGrafo.addActionListener(e -> {
             logger.info("Menú Conflictos > Visualizar Grafo seleccionado");
-            cardLayout.show(mainPanel, "conflicts");
-            updateStatus("Visualización de grafo de conflictos activada");
+            showConflictGraph();
         });
         mConf.add(miGrafo);
 
@@ -122,6 +129,15 @@ public class MainUI extends JFrame {
             showAssignmentManager();
         });
         mAssignments.add(miAssignmentManager);
+        
+        // Nuevo ítem para Calendario
+        JMenuItem miCalendar = new JMenuItem("Ver Calendario");
+        miCalendar.addActionListener(e -> {
+            logger.info("Menú Asignaciones > Ver Calendario seleccionado");
+            showCalendar();
+            updateStatus("Calendario de Asignaciones abierto");
+        });
+        mAssignments.add(miCalendar);
 
         menuBar.add(mArchivo);
         menuBar.add(mProfes);
@@ -151,7 +167,7 @@ public class MainUI extends JFrame {
         
         JButton btnConf = createToolButton("Conflictos", e -> {
             logger.info("Botón Conflictos presionado");
-            cardLayout.show(mainPanel, "conflicts");
+            showConflictGraph();
             updateStatus("Visualización de grafo de conflictos activada");
         });
         
@@ -167,11 +183,19 @@ public class MainUI extends JFrame {
             showAssignmentManager();
         });
         
+        // Nuevo botón para Calendario de Asignaciones
+        calendarButton = createToolButton("Calendario", e -> {
+            logger.info("Botón Calendario presionado");
+            showCalendar();
+            updateStatus("Calendario de Asignaciones abierto");
+        });
+        
         tb.add(btnHome);
         tb.add(btnProf);
         tb.add(btnConf);
         tb.add(btnAsig);
         tb.add(btnAssignments);
+        tb.add(calendarButton);
         
         logger.fine("Barra de herramientas creada");
         return tb;
@@ -211,7 +235,7 @@ public class MainUI extends JFrame {
         JButton b3 = new JButton("Conflictos");
         b3.addActionListener(e -> {
             logger.info("Panel lateral: Botón Conflictos presionado");
-            cardLayout.show(mainPanel, "conflicts");
+            showConflictGraph();
             updateStatus("Visualización de grafo de conflictos activada");
         });
         
@@ -229,11 +253,20 @@ public class MainUI extends JFrame {
             showAssignmentManager();
         });
         
+        // Nuevo botón para Calendario
+        JButton b6 = new JButton("Calendario");
+        b6.addActionListener(e -> {
+            logger.info("Panel lateral: Botón Calendario presionado");
+            showCalendar();
+            updateStatus("Calendario de Asignaciones abierto");
+        });
+        
         p.add(b1);
         p.add(b2);
         p.add(b3);
         p.add(b4);
         p.add(b5);
+        p.add(b6);
         
         logger.fine("Panel lateral creado");
         return p;
@@ -260,190 +293,278 @@ public class MainUI extends JFrame {
     }
 
     /**
- * Muestra el gestor de profesores en el panel principal
- */
-private void showProfessorManager() {
-    try {
-        logger.info("=== Mostrando Gestor de Profesores ===");
-        
-        // Inicializar el panel si es la primera vez
-        if (professorPanel == null) {
-            logger.info("Creando panel de profesores por primera vez");
+     * Muestra el gestor de profesores en el panel principal
+     */
+    private void showProfessorManager() {
+        try {
+            logger.info("=== Mostrando Gestor de Profesores ===");
             
-            // Crear una nueva instancia del gestor (ahora es un JPanel directamente)
-            professorPanel = new AdvancedProfessorManagerUI();
+            // Inicializar el panel si es la primera vez
+            if (professorPanel == null) {
+                logger.info("Creando panel de profesores por primera vez");
+                
+                // Crear una nueva instancia del gestor (ahora es un JPanel directamente)
+                professorPanel = new AdvancedProfessorManagerUI();
+                
+                // Añadirlo al CardLayout
+                mainPanel.add(professorPanel, "professors");
+                
+                logger.info("Panel de profesores creado y añadido al CardLayout");
+            } else {
+                logger.info("Usando panel de profesores existente");
+            }
             
-            // Añadirlo al CardLayout
-            mainPanel.add(professorPanel, "professors");
+            // Mostrar el panel en el CardLayout
+            cardLayout.show(mainPanel, "professors");
             
-            logger.info("Panel de profesores creado y añadido al CardLayout");
-        } else {
-            logger.info("Usando panel de profesores existente");
+            // Actualizar estado
+            updateStatus("Gestor de Profesores activado");
+            
+            logger.info("=== Gestor de Profesores mostrado con éxito ===");
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error al mostrar el Gestor de Profesores", e);
+            JOptionPane.showMessageDialog(
+                this,
+                "Error al mostrar el Gestor de Profesores: " + e.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
         }
-        
-        // Mostrar el panel en el CardLayout
-        cardLayout.show(mainPanel, "professors");
-        
-        // Actualizar estado
-        updateStatus("Gestor de Profesores activado");
-        
-        logger.info("=== Gestor de Profesores mostrado con éxito ===");
-    } catch (Exception e) {
-        logger.log(Level.SEVERE, "Error al mostrar el Gestor de Profesores", e);
-        JOptionPane.showMessageDialog(
-            this,
-            "Error al mostrar el Gestor de Profesores: " + e.getMessage(),
-            "Error",
-            JOptionPane.ERROR_MESSAGE
-        );
     }
-}
     
     /**
- * Muestra el gestor de asignaciones en el panel principal
- */
-private void showAssignmentManager() {
-    try {
-        logger.info("=== Mostrando Gestor de Asignaciones ===");
-        
-        // Inicializar el panel si es la primera vez
-        if (assignmentPanel == null) {
-            logger.info("Creando panel de asignaciones por primera vez");
+     * Muestra el gestor de asignaciones en el panel principal
+     */
+    private void showAssignmentManager() {
+        try {
+            logger.info("=== Mostrando Gestor de Asignaciones ===");
             
-            // Creamos un panel contenedor
-            assignmentPanel = new JPanel(new BorderLayout());
-            
-            // Lanzamos la ventana de gestión de asignaciones en una ventana independiente
-            SwingUtilities.invokeLater(() -> {
-                AssignmentManagerUI assignmentUI = new AssignmentManagerUI();
-                assignmentUI.setVisible(true);
-            });
-            
-            // Añadimos un mensaje en el panel contenedor
-            JLabel infoLabel = new JLabel("El gestor de asignaciones se ha abierto en una ventana independiente", SwingConstants.CENTER);
-            infoLabel.setFont(infoLabel.getFont().deriveFont(Font.BOLD, 14f));
-            assignmentPanel.add(infoLabel, BorderLayout.CENTER);
-            
-            // Añadirlo al CardLayout
-            mainPanel.add(assignmentPanel, "assignments");
-            
-            logger.info("Panel de asignaciones creado y añadido al CardLayout");
-        } else {
-            // Simplemente abrir la ventana independiente de nuevo
-            SwingUtilities.invokeLater(() -> {
-                AssignmentManagerUI assignmentUI = new AssignmentManagerUI();
-                assignmentUI.setVisible(true);
-            });
-            logger.info("Abriendo nueva ventana de asignaciones");
-        }
-        
-        // Mostrar el panel en el CardLayout
-        cardLayout.show(mainPanel, "assignments");
-        
-        // Actualizar estado
-        updateStatus("Gestor de Asignaciones abierto en ventana independiente");
-        
-        logger.info("=== Gestor de Asignaciones mostrado con éxito ===");
-    } catch (Exception e) {
-        logger.log(Level.SEVERE, "Error al mostrar el Gestor de Asignaciones", e);
-        JOptionPane.showMessageDialog(
-            this,
-            "Error al mostrar el Gestor de Asignaciones: " + e.getMessage(),
-            "Error",
-            JOptionPane.ERROR_MESSAGE
-        );
-    }
-}
-    // Panel para visualizar grafo de conflictos en JSON
-    private class ConflictGraphUI extends JPanel {
-        private final JTextArea area;
-        private final ObjectMapper mapper;
-        public ConflictGraphUI() {
-            super(new BorderLayout());
-            mapper = new ObjectMapper().registerModule(new JavaTimeModule());
-            mapper.enable(SerializationFeature.INDENT_OUTPUT);
-            area = new JTextArea(); area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12)); area.setEditable(false);
-            add(new JScrollPane(area), BorderLayout.CENTER);
-            loadConflicts();
-        }
-        private void loadConflicts() {
-            try {
-                ObjectNode root = mapper.createObjectNode();
-                ArrayNode arr = mapper.createArrayNode();
-                List<Professor> profs = DataManager.getInstance().getAllProfessors();
-                for (int i=0; i<profs.size(); i++) {
-                    for (int j=i+1; j<profs.size(); j++) {
-                        Professor p1 = profs.get(i), p2 = profs.get(j);
-                        for (BlockedSlot bs1 : p1.getBlockedSlots()) {
-                            for (BlockedSlot bs2 : p2.getBlockedSlots()) {
-                                if (bs1.getDay().equals(bs2.getDay()) &&
-                                    bs1.getStartTime().isBefore(bs2.getEndTime()) &&
-                                    bs2.getStartTime().isBefore(bs1.getEndTime())) {
-                                    ObjectNode edge = mapper.createObjectNode();
-                                    edge.put("professor1", p1.getName());
-                                    edge.put("professor2", p2.getName());
-                                    edge.put("day", bs1.getDay());
-                                    edge.put("overlapStart", bs1.getStartTime().plusNanos(0).toString());
-                                    edge.put("overlapEnd", bs1.getEndTime().isBefore(bs2.getEndTime()) ? bs1.getEndTime().toString() : bs2.getEndTime().toString());
-                                    arr.add(edge);
-                                }
-                            }
-                        }
-                    }
-                }
+            // Inicializar el panel si es la primera vez
+            if (assignmentPanel == null) {
+                logger.info("Creando panel de asignaciones por primera vez");
                 
-                // Añadir también los conflictos entre asignaciones
-                List<Assignment> assignments = DataManager.getInstance().getAllAssignments();
-                for (int i=0; i<assignments.size(); i++) {
-                    for (int j=i+1; j<assignments.size(); j++) {
-                        Assignment a1 = assignments.get(i);
-                        Assignment a2 = assignments.get(j);
-                        
-                        // Verificar si hay solapamiento de tiempo
-                        if (a1.getDay().equals(a2.getDay()) && 
-                            a1.overlapsTimeWith(a2)) {
-                            
-                            // Verificar diferentes tipos de conflictos
-                            if (a1.getProfessorId() == a2.getProfessorId()) {
-                                ObjectNode edge = mapper.createObjectNode();
-                                edge.put("type", "PROFESSOR");
-                                edge.put("assignment1", a1.getId());
-                                edge.put("assignment2", a2.getId());
-                                edge.put("description", "Mismo profesor en horarios solapados");
-                                arr.add(edge);
-                            }
-                            
-                            if (a1.getRoomId() == a2.getRoomId()) {
-                                ObjectNode edge = mapper.createObjectNode();
-                                edge.put("type", "ROOM");
-                                edge.put("assignment1", a1.getId());
-                                edge.put("assignment2", a2.getId());
-                                edge.put("description", "Misma aula en horarios solapados");
-                                arr.add(edge);
-                            }
-                            
-                            if (a1.getGroupId() == a2.getGroupId()) {
-                                ObjectNode edge = mapper.createObjectNode();
-                                edge.put("type", "GROUP");
-                                edge.put("assignment1", a1.getId());
-                                edge.put("assignment2", a2.getId());
-                                edge.put("description", "Mismo grupo en horarios solapados");
-                                arr.add(edge);
-                            }
-                        }
-                    }
-                }
+                // Creamos un panel contenedor
+                assignmentPanel = new JPanel(new BorderLayout());
                 
-                root.set("conflictGraph", arr);
-                area.setText(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(root));
-            } catch (Exception e) {
-                area.setText("Error cargando conflictos: " + e.getMessage());
-                logger.log(Level.WARNING, "Error al cargar conflictos", e);
+                // Lanzamos la ventana de gestión de asignaciones en una ventana independiente
+                SwingUtilities.invokeLater(() -> {
+                    AssignmentManagerUI assignmentUI = new AssignmentManagerUI();
+                    assignmentUI.setVisible(true);
+                });
+                
+                // Añadimos un mensaje en el panel contenedor
+                JLabel infoLabel = new JLabel("El gestor de asignaciones se ha abierto en una ventana independiente", SwingConstants.CENTER);
+                infoLabel.setFont(infoLabel.getFont().deriveFont(Font.BOLD, 14f));
+                assignmentPanel.add(infoLabel, BorderLayout.CENTER);
+                
+                // Añadirlo al CardLayout
+                mainPanel.add(assignmentPanel, "assignments");
+                
+                logger.info("Panel de asignaciones creado y añadido al CardLayout");
+            } else {
+                // Simplemente abrir la ventana independiente de nuevo
+                SwingUtilities.invokeLater(() -> {
+                    AssignmentManagerUI assignmentUI = new AssignmentManagerUI();
+                    assignmentUI.setVisible(true);
+                });
+                logger.info("Abriendo nueva ventana de asignaciones");
             }
+            
+            // Mostrar el panel en el CardLayout
+            cardLayout.show(mainPanel, "assignments");
+            
+            // Actualizar estado
+            updateStatus("Gestor de Asignaciones abierto en ventana independiente");
+            
+            logger.info("=== Gestor de Asignaciones mostrado con éxito ===");
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error al mostrar el Gestor de Asignaciones", e);
+            JOptionPane.showMessageDialog(
+                this,
+                "Error al mostrar el Gestor de Asignaciones: " + e.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
         }
     }
 
-    // Panel para listar asignaturas
+    /**
+     * Abre la ventana de visualización de grafo de conflictos
+     */
+    private void showConflictGraph() {
+        try {
+            logger.info("=== Abriendo Visualizador de Grafo de Conflictos ===");
+            
+            // Generar datos actualizados del grafo
+            generateGraphJson();
+            
+            // Abrir directamente el GraphJsonViewer en una ventana independiente
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    // Configuramos el mismo Look and Feel para mantener la coherencia visual
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                    
+                    GraphJsonViewer viewer = new GraphJsonViewer();
+                    viewer.setVisible(true);
+                } catch (Exception ex) {
+                    logger.log(Level.SEVERE, "Error configurando Look and Feel para el visor", ex);
+                }
+            });
+            
+            // Actualizar estado
+            updateStatus("Visualizador de Grafo de Conflictos abierto en ventana independiente");
+            
+            logger.info("=== Visualizador de Grafo de Conflictos abierto con éxito ===");
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error al abrir el Visualizador de Grafo de Conflictos", e);
+            JOptionPane.showMessageDialog(
+                this,
+                "Error al abrir el Visualizador de Grafo de Conflictos: " + e.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+    
+    /**
+     * Abre la interfaz de calendario de asignaciones
+     */
+    private void showCalendar() {
+        try {
+            logger.info("=== Abriendo Calendario de Asignaciones ===");
+            
+            // Asegurarnos que el grafo de conflictos está actualizado
+            generateGraphJson();
+            
+            // Abrir la ventana del calendario
+            SwingUtilities.invokeLater(() -> {
+                try {
+                    UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+                    AssignmentCalendarUI calendar = new AssignmentCalendarUI();
+                    calendar.setVisible(true);
+                } catch (Exception ex) {
+                    logger.log(Level.SEVERE, "Error al abrir el calendario", ex);
+                }
+            });
+            
+            logger.info("=== Calendario de Asignaciones abierto con éxito ===");
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error al abrir el Calendario de Asignaciones", e);
+            JOptionPane.showMessageDialog(
+                this,
+                "Error al abrir el Calendario de Asignaciones: " + e.getMessage(),
+                "Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+    
+    /**
+     * Genera el archivo graph.json con los datos de conflictos actuales
+     */
+    private String generateGraphJson() {
+        try {
+            logger.info("Generando archivo graph.json");
+            
+            ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+            mapper.enable(SerializationFeature.INDENT_OUTPUT);
+            
+            ObjectNode root = mapper.createObjectNode();
+            ArrayNode arr = mapper.createArrayNode();
+            
+            // Añadir conflictos entre profesores
+            List<Professor> profs = DataManager.getInstance().getAllProfessors();
+            for (int i=0; i<profs.size(); i++) {
+                for (int j=i+1; j<profs.size(); j++) {
+                    Professor p1 = profs.get(i), p2 = profs.get(j);
+                    for (BlockedSlot bs1 : p1.getBlockedSlots()) {
+                        for (BlockedSlot bs2 : p2.getBlockedSlots()) {
+                            if (bs1.getDay().equals(bs2.getDay()) &&
+                                bs1.getStartTime().isBefore(bs2.getEndTime()) &&
+                                bs2.getStartTime().isBefore(bs1.getEndTime())) {
+                                ObjectNode edge = mapper.createObjectNode();
+                                edge.put("professor1", p1.getName());
+                                edge.put("professor2", p2.getName());
+                                edge.put("day", bs1.getDay());
+                                edge.put("overlapStart", bs1.getStartTime().plusNanos(0).toString());
+                                edge.put("overlapEnd", bs1.getEndTime().isBefore(bs2.getEndTime()) ? bs1.getEndTime().toString() : bs2.getEndTime().toString());
+                                arr.add(edge);
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Añadir también los conflictos entre asignaciones
+            List<Assignment> assignments = DataManager.getInstance().getAllAssignments();
+            for (int i=0; i<assignments.size(); i++) {
+                for (int j=i+1; j<assignments.size(); j++) {
+                    Assignment a1 = assignments.get(i);
+                    Assignment a2 = assignments.get(j);
+                    
+                    // Verificar si hay solapamiento de tiempo
+                    if (a1.getDay().equals(a2.getDay()) && 
+                        a1.overlapsTimeWith(a2)) {
+                        
+                        // Verificar diferentes tipos de conflictos
+                        if (a1.getProfessorId() == a2.getProfessorId()) {
+                            ObjectNode edge = mapper.createObjectNode();
+                            edge.put("type", "PROFESSOR");
+                            edge.put("assignment1", a1.getId());
+                            edge.put("assignment2", a2.getId());
+                            edge.put("description", "Mismo profesor en horarios solapados");
+                            arr.add(edge);
+                        }
+                        
+                        if (a1.getRoomId() == a2.getRoomId()) {
+                            ObjectNode edge = mapper.createObjectNode();
+                            edge.put("type", "ROOM");
+                            edge.put("assignment1", a1.getId());
+                            edge.put("assignment2", a2.getId());
+                            edge.put("description", "Misma aula en horarios solapados");
+                            arr.add(edge);
+                        }
+                        
+                        if (a1.getGroupId() == a2.getGroupId()) {
+                            ObjectNode edge = mapper.createObjectNode();
+                            edge.put("type", "GROUP");
+                            edge.put("assignment1", a1.getId());
+                            edge.put("assignment2", a2.getId());
+                            edge.put("description", "Mismo grupo en horarios solapados");
+                            arr.add(edge);
+                        }
+                    }
+                }
+            }
+            
+            root.set("conflictGraph", arr);
+            String jsonContent = mapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
+            
+            // Guardar el JSON en un archivo
+            Path resourceDir = Paths.get("src", "main", "resources", "com", "example", "miapp", "graph_data");
+            // Asegurar que el directorio exista
+            Files.createDirectories(resourceDir);
+            
+            // Ruta del archivo graph.json
+            graphJsonPath = resourceDir.resolve("graph.json");
+            
+            // Escribir el contenido al archivo
+            try (FileWriter writer = new FileWriter(graphJsonPath.toFile())) {
+                writer.write(jsonContent);
+            }
+            
+            logger.info("Archivo graph.json generado correctamente en: " + graphJsonPath.toAbsolutePath());
+            
+            return jsonContent;
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "Error al generar archivo graph.json", e);
+            throw new RuntimeException("Error al generar archivo graph.json: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Panel para listar asignaturas
+     */
     private class SubjectViewerUI extends JPanel {
         public SubjectViewerUI() {
             super(new BorderLayout());
